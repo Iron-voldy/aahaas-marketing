@@ -140,14 +140,14 @@ export function PackagesClient({ rows: initialRows, schema }: PackagesClientProp
 
     // --- Action Handlers --- 
 
-    const handleLinkPost = async (platform: "facebook" | "instagram", postId: string) => {
+    const handleLinkPost = async (fbId: string, igId: string) => {
         if (linkingIndex === null) return;
 
         try {
             const updatePayload = {
                 rowIndex: linkingIndex,
-                fb_post_id: platform === "facebook" ? postId : undefined,
-                ig_post_id: platform === "instagram" ? postId : undefined,
+                fb_post_id: fbId,
+                ig_post_id: igId,
             };
 
             const res = await fetch("/api/packages/sync", {
