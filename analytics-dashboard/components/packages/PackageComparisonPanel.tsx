@@ -75,19 +75,19 @@ export function PackageComparisonPanel({
         const allKeys = Object.keys(row);
         switch (metricKey) {
             case "fbReach":
-                return Number(row[allKeys.find(k => k.startsWith("fb_") && k.includes("reach")) ?? ""] ?? 0);
+                return Number(row[allKeys.find(k => (k.startsWith("fb_") && k.includes("reach")) || k === "FB Reach") ?? ""] ?? 0);
             case "igReach":
-                return Number(row[allKeys.find(k => k.startsWith("ig_") && k.includes("reach")) ?? ""] ?? 0);
+                return Number(row[allKeys.find(k => (k.startsWith("ig_") && k.includes("reach")) || k === "IG Reach") ?? ""] ?? 0);
             case "totalReach":
-                return Number(row[allKeys.find(k => k.includes("total") && k.includes("reach")) ?? ""] ?? 0);
+                return Number(row[allKeys.find(k => (k.includes("total") && k.includes("reach")) || k === "Combined Reach") ?? ""] ?? 0);
             case "fbReact":
-                return Number(row[allKeys.find(k => k.startsWith("fb_") && k.includes("react")) ?? ""] ?? 0);
+                return Number(row[allKeys.find(k => (k.startsWith("fb_") && k.includes("react")) || k === "FB Interactions (Reactions)") ?? ""] ?? 0);
             case "fbClicks":
-                return Number(row[allKeys.find(k => k.startsWith("fb_") && k.includes("click") && !k.includes("link")) ?? ""] ?? 0);
+                return Number(row[allKeys.find(k => (k.startsWith("fb_") && k.includes("click") && !k.includes("link")) || k === "FB Total Clicks") ?? ""] ?? 0);
             case "conversations":
-                return Number(row[allKeys.find(k => k.includes("conversation")) ?? ""] ?? 0);
+                return Number(row[allKeys.find(k => k.includes("conversation") || k === "FB + IG Messaging Conversations Started") ?? ""] ?? 0);
             case "adSpend":
-                return Number(row[allKeys.find(k => k.includes("spend")) ?? ""] ?? 0);
+                return Number(row[allKeys.find(k => k.includes("spend") || k === "Amount Spent (USD)") ?? ""] ?? 0);
             default:
                 return 0;
         }
@@ -97,22 +97,25 @@ export function PackageComparisonPanel({
     const chartData = metrics.map((m) => {
         const entry: Record<string, string | number> = { metric: m.label };
         rows.forEach((row, i) => {
-            const country = String(row["country"] ?? `Pkg ${i + 1}`);
-            const date = String(row["date_published"] ?? "").split(",")[0];
+            const countryField = row["Package"] || row["package"] || row["country"];
+            const country = String(countryField ?? `Pkg ${i + 1}`);
+            const date = String(row["date_published"] ?? row["Date Published"] ?? "").split(",")[0];
             entry[`${country} (${date})`] = getVal(row, m.key);
         });
         return entry;
     }).filter((entry) => {
         // Only show metrics where at least one package has a non-zero value
         return rows.some((_, i) => {
-            const lbl = `${String(rows[i]["country"] ?? `Pkg ${i + 1}`)} (${String(rows[i]["date_published"] ?? "").split(",")[0]})`;
+            const countryField = rows[i]["Package"] || rows[i]["package"] || rows[i]["country"];
+            const lbl = `${String(countryField ?? `Pkg ${i + 1}`)} (${String(rows[i]["date_published"] ?? rows[i]["Date Published"] ?? "").split(",")[0]})`;
             return Number(entry[lbl]) > 0;
         });
     });
 
     const seriesKeys = rows.map((row, i) => {
-        const country = String(row["country"] ?? `Pkg ${i + 1}`);
-        const date = String(row["date_published"] ?? "").split(",")[0];
+        const countryField = row["Package"] || row["package"] || row["country"];
+        const country = String(countryField ?? `Pkg ${i + 1}`);
+        const date = String(row["date_published"] ?? row["Date Published"] ?? "").split(",")[0];
         return `${country} (${date})`;
     });
 
@@ -142,7 +145,8 @@ export function PackageComparisonPanel({
             {/* Selected package chips */}
             <div className="flex gap-2 flex-wrap px-5 py-3 border-b border-slate-100 dark:border-white/5">
                 {rows.map((row, i) => {
-                    const country = String(row["country"] ?? `Pkg ${i + 1}`);
+                    const countryField = row["Package"] || row["package"] || row["country"];
+                    const country = String(countryField ?? `Pkg ${i + 1}`);
                     const theme = getTheme(country);
                     return (
                         <div
@@ -173,7 +177,8 @@ export function PackageComparisonPanel({
                                 Metric
                             </th>
                             {rows.map((row, i) => {
-                                const country = String(row["country"] ?? `Pkg ${i + 1}`);
+                                const countryField = row["Package"] || row["package"] || row["country"];
+                                const country = String(countryField ?? `Pkg ${i + 1}`);
                                 const theme = getTheme(country);
                                 return (
                                     <th key={i} className="px-4 py-2.5 text-left">
@@ -187,7 +192,7 @@ export function PackageComparisonPanel({
                                             </span>
                                         </div>
                                         <div className="text-[10px] text-slate-400 ml-3.5 mt-0.5 font-normal">
-                                            {String(row["date_published"] ?? "").split(",")[0]}
+                                            {String(row["date_published"] ?? row["Date Published"] ?? "").split(",")[0]}
                                         </div>
                                     </th>
                                 );
@@ -202,17 +207,17 @@ export function PackageComparisonPanel({
                                 getValue: () => <div className="flex gap-1"><FacebookLogo className="w-3.5 h-3.5" /><InstagramLogo className="w-3.5 h-3.5" /></div>,
                                 isHeader: true,
                             },
-                            { label: "FB Reach", fn: (r: Row) => fmt(r[Object.keys(r).find(k => k.startsWith("fb_") && k.includes("reach")) ?? ""] ?? null) },
-                            { label: "IG Reach", fn: (r: Row) => fmt(r[Object.keys(r).find(k => k.startsWith("ig_") && k.includes("reach")) ?? ""] ?? null) },
-                            { label: "Total Reach", fn: (r: Row) => fmt(r[Object.keys(r).find(k => k.includes("total") && k.includes("reach")) ?? ""] ?? null), highlight: true },
-                            { label: "FB Reactions", fn: (r: Row) => fmt(r[Object.keys(r).find(k => k.startsWith("fb_") && k.includes("react")) ?? ""] ?? null) },
-                            { label: "IG Reactions", fn: (r: Row) => fmt(r[Object.keys(r).find(k => k.startsWith("ig_") && k.includes("react")) ?? ""] ?? null) },
-                            { label: "FB Shares", fn: (r: Row) => fmt(r[Object.keys(r).find(k => k.startsWith("fb_") && k.includes("share")) ?? ""] ?? null) },
-                            { label: "IG Shares", fn: (r: Row) => fmt(r[Object.keys(r).find(k => k.startsWith("ig_") && k.includes("share")) ?? ""] ?? null) },
-                            { label: "FB Total Clicks", fn: (r: Row) => fmt(r[Object.keys(r).find(k => k.startsWith("fb_") && k.includes("click") && !k.includes("link")) ?? ""] ?? null) },
-                            { label: "Conversations", fn: (r: Row) => fmt(r[Object.keys(r).find(k => k.includes("conversation")) ?? ""] ?? null) },
-                            { label: "Ad Spend ($)", fn: (r: Row) => { const k = Object.keys(r).find(k => k.includes("spend")); return k && r[k] !== null ? `$${Number(r[k]).toFixed(2)}` : "—"; }, highlight: true },
-                            { label: "CPR ($)", fn: (r: Row) => { const k = Object.keys(r).find(k => k.includes("cpr")); return k && r[k] !== null ? `$${Number(r[k]).toFixed(2)}` : "—"; } },
+                            { label: "FB Reach", fn: (r: Row) => fmt(r[Object.keys(r).find(k => (k.startsWith("fb_") && k.includes("reach")) || k === "FB Reach") ?? ""] ?? null) },
+                            { label: "IG Reach", fn: (r: Row) => fmt(r[Object.keys(r).find(k => (k.startsWith("ig_") && k.includes("reach")) || k === "IG Reach") ?? ""] ?? null) },
+                            { label: "Total Reach", fn: (r: Row) => fmt(r[Object.keys(r).find(k => (k.includes("total") && k.includes("reach")) || k === "Combined Reach") ?? ""] ?? null), highlight: true },
+                            { label: "FB Reactions", fn: (r: Row) => fmt(r[Object.keys(r).find(k => (k.startsWith("fb_") && k.includes("react")) || k === "FB Interactions (Reactions)") ?? ""] ?? null) },
+                            { label: "IG Reactions", fn: (r: Row) => fmt(r[Object.keys(r).find(k => (k.startsWith("ig_") && k.includes("react")) || k === "IG Interactions (Reactions)") ?? ""] ?? null) },
+                            { label: "FB Shares", fn: (r: Row) => fmt(r[Object.keys(r).find(k => (k.startsWith("fb_") && k.includes("share")) || k === "FB Interactions (Shares)") ?? ""] ?? null) },
+                            { label: "IG Shares", fn: (r: Row) => fmt(r[Object.keys(r).find(k => (k.startsWith("ig_") && k.includes("share")) || k === "IG Interactions (Shares)") ?? ""] ?? null) },
+                            { label: "FB Total Clicks", fn: (r: Row) => fmt(r[Object.keys(r).find(k => (k.startsWith("fb_") && k.includes("click") && !k.includes("link")) || k === "FB Total Clicks") ?? ""] ?? null) },
+                            { label: "Conversations", fn: (r: Row) => fmt(r[Object.keys(r).find(k => k.includes("conversation") || k === "FB + IG Messaging Conversations Started") ?? ""] ?? null) },
+                            { label: "Ad Spend ($)", fn: (r: Row) => { const k = Object.keys(r).find(k => k.includes("spend") || k === "Amount Spent (USD)"); return k && r[k] !== null ? `$${Number(r[k]).toFixed(2)}` : "—"; }, highlight: true },
+                            { label: "CPR ($)", fn: (r: Row) => { const k = Object.keys(r).find(k => k.includes("cpr") || k === "CPR (Cost Per Result)"); return k && r[k] !== null ? `$${Number(r[k]).toFixed(2)}` : "—"; } },
                         ].map((rowDef, ri) => {
                             const values = rows.map(r => rowDef.fn ? rowDef.fn(r) : "");
                             // Find best value index (highest number)

@@ -186,12 +186,12 @@ export function computeKpis(rows: Row[], schema: InferredSchema): KpiCard[] {
     });
 
     // Find reach-related columns (total reach first)
-    const reachCol = numericColumns.find((c) => c.includes("total") && c.includes("reach"));
-    const fbReachCol = numericColumns.find((c) => c.startsWith("fb_") && c.includes("reach"));
-    const igReachCol = numericColumns.find((c) => c.startsWith("ig_") && c.includes("reach"));
-    const spendCol = numericColumns.find((c) => c.includes("spend"));
-    const convCol = numericColumns.find((c) => c.includes("conversation"));
-    const clicksCol = numericColumns.find((c) => c.includes("total_clicks") || (c.includes("fb") && c.includes("click")));
+    const reachCol = numericColumns.find((c) => (c.includes("total") && c.includes("reach")) || c === "Combined Reach");
+    const fbReachCol = numericColumns.find((c) => (c.startsWith("fb_") && c.includes("reach")) || c === "FB Reach");
+    const igReachCol = numericColumns.find((c) => (c.startsWith("ig_") && c.includes("reach")) || c === "IG Reach");
+    const spendCol = numericColumns.find((c) => c.includes("spend") || c === "Amount Spent (USD)");
+    const convCol = numericColumns.find((c) => c.includes("conversation") || c === "FB + IG Messaging Conversations Started");
+    const clicksCol = numericColumns.find((c) => c.includes("total_clicks") || (c.includes("fb") && c.includes("click")) || c === "FB Total Clicks");
 
     if (reachCol) {
         kpis.push({
@@ -243,7 +243,7 @@ export function computeKpis(rows: Row[], schema: InferredSchema): KpiCard[] {
     }
 
     // Top destination by total reach
-    const countryCol = categoricalColumns.find((c) => c.includes("country") || c === "country");
+    const countryCol = categoricalColumns.find((c) => c.includes("country") || c === "country" || c === "Package" || c === "package");
     if (countryCol && reachCol) {
         const grouped = groupBy(rows, countryCol);
         let topCountry = "";
@@ -265,7 +265,7 @@ export function computeKpis(rows: Row[], schema: InferredSchema): KpiCard[] {
     }
 
     // Avg CPR if available
-    const cprCol = numericColumns.find((c) => c.includes("cpr"));
+    const cprCol = numericColumns.find((c) => c.includes("cpr") || c === "CPR (Cost Per Result)");
     if (cprCol) {
         const paidRows = rows.filter((r) => r[cprCol] !== null && r[cprCol] !== undefined);
         if (paidRows.length > 0) {
@@ -289,12 +289,12 @@ export function generateInsights(
     const { numericColumns, categoricalColumns, dateColumns } = schema;
 
     const reachCol =
-        numericColumns.find((c) => c.includes("total") && c.includes("reach")) ||
-        numericColumns.find((c) => c.includes("reach")) ||
+        numericColumns.find((c) => (c.includes("total") && c.includes("reach")) || c === "Combined Reach") ||
+        numericColumns.find((c) => c.includes("reach") || c === "FB Reach" || c === "IG Reach" || c === "Ads Total Reach") ||
         numericColumns[0];
 
     const catCol =
-        categoricalColumns.find((c) => c.includes("country")) ||
+        categoricalColumns.find((c) => c.includes("country") || c === "Package" || c === "package") ||
         categoricalColumns[0];
 
     const dateCol = dateColumns[0] ?? null;
@@ -381,7 +381,7 @@ export function generateInsights(
             `${topGrowth.name} showed the strongest month-over-month growth at ${topGrowth.growthRate > 0 ? "+" : ""}${topGrowth.growthRate}%.`
         );
     }
-    const spendCol = numericColumns.find((c) => c.includes("spend"));
+    const spendCol = numericColumns.find((c) => c.includes("spend") || c === "Amount Spent (USD)");
     if (spendCol) {
         const totalSpend = sumColumn(rows, spendCol);
         const paidRows = rows.filter((r) => r[spendCol] !== null);
@@ -389,7 +389,7 @@ export function generateInsights(
             `Total ad spend was $${totalSpend.toFixed(2)} across ${paidRows.length} paid campaign${paidRows.length !== 1 ? "s" : ""}.`
         );
     }
-    const convCol = numericColumns.find((c) => c.includes("conversation"));
+    const convCol = numericColumns.find((c) => c.includes("conversation") || c === "FB + IG Messaging Conversations Started");
     if (convCol && spendCol) {
         const totalConv = sumColumn(rows, convCol);
         const totalSpend = sumColumn(rows, spendCol);

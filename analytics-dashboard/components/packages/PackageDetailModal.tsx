@@ -42,7 +42,7 @@ interface PackageDetailModalProps {
 export function PackageDetailModal({ row, open, onClose }: PackageDetailModalProps) {
     if (!row) return null;
 
-    const country = String(row["country"] ?? "Unknown");
+    const country = String(row["Package"] || row["package"] || row["country"] || "Unknown");
     const datePublished = String(row["date_published"] ?? "");
     const validity = String(row["validity_period"] ?? "");
 
@@ -50,27 +50,27 @@ export function PackageDetailModal({ row, open, onClose }: PackageDetailModalPro
     const g = (prefix: string, word: string) =>
         keys.find((k) => k.startsWith(prefix) && k.includes(word));
 
-    const fbReach = g("fb_", "reach");
-    const igReach = g("ig_", "reach");
-    const totalReach = keys.find((k) => k.includes("total") && k.includes("reach"));
-    const fbReact = g("fb_", "react");
-    const igReact = g("ig_", "react");
-    const fbShare = g("fb_", "share");
-    const igShare = g("ig_", "share");
-    const fbSave = g("fb_", "save");
-    const igSave = g("ig_", "save");
-    const fbComment = g("fb_", "comment");
-    const igComment = g("ig_", "comment");
-    const fbClicks = keys.find((k) => k.startsWith("fb_") && k.includes("click") && !k.includes("link"));
-    const linkClicks = g("fb_", "link");
-    const convCol = keys.find((k) => k.includes("conversation"));
-    const spendCol = keys.find((k) => k.includes("spend"));
-    const cprCol = keys.find((k) => k.includes("cpr"));
-    const impressionsCol = keys.find((k) => k.includes("impression"));
-    const adsReach = keys.find((k) => k.startsWith("ads_") && k.includes("reach"));
-    const objective = keys.find((k) => k.includes("objective"));
-    const startDate = keys.find((k) => k.startsWith("ads_") && k.includes("start"));
-    const endDate = keys.find((k) => k.startsWith("ads_") && k.includes("end"));
+    const fbReach = g("fb_", "reach") || keys.find(k => k === "FB Reach");
+    const igReach = g("ig_", "reach") || keys.find(k => k === "IG Reach");
+    const totalReach = keys.find((k) => (k.includes("total") && k.includes("reach")) || k === "Combined Reach");
+    const fbReact = g("fb_", "react") || keys.find(k => k === "FB Interactions (Reactions)");
+    const igReact = g("ig_", "react") || keys.find(k => k === "IG Interactions (Reactions)");
+    const fbShare = g("fb_", "share") || keys.find(k => k === "FB Interactions (Shares)");
+    const igShare = g("ig_", "share") || keys.find(k => k === "IG Interactions (Shares)");
+    const fbSave = g("fb_", "save") || keys.find(k => k === "FB Interactions (Saves)");
+    const igSave = g("ig_", "save") || keys.find(k => k === "IG Interactions (Saves)");
+    const fbComment = g("fb_", "comment") || keys.find(k => k === "FB Interactions (Comments)");
+    const igComment = g("ig_", "comment") || keys.find(k => k === "IG Interactions (Comments)");
+    const fbClicks = keys.find((k) => (k.startsWith("fb_") && k.includes("click") && !k.includes("link")) || k === "FB Total Clicks");
+    const linkClicks = g("fb_", "link") || keys.find(k => k === "FB Link Clicks");
+    const convCol = keys.find((k) => k.includes("conversation") || k === "FB + IG Messaging Conversations Started");
+    const spendCol = keys.find((k) => k.includes("spend") || k === "Amount Spent (USD)");
+    const cprCol = keys.find((k) => k.includes("cpr") || k === "CPR (Cost Per Result)");
+    const impressionsCol = keys.find((k) => k.includes("impression") || k === "Impressions");
+    const adsReach = keys.find((k) => (k.startsWith("ads_") && k.includes("reach")) || k === "Ads Total Reach");
+    const objective = keys.find((k) => k.includes("objective") || k === "Ads Objective");
+    const startDate = keys.find((k) => (k.startsWith("ads_") && k.includes("start")) || k === "Start Date");
+    const endDate = keys.find((k) => (k.startsWith("ads_") && k.includes("end")) || k === "End Date");
 
     // Bar chart data for engagement comparison
     const engagementData = [

@@ -46,10 +46,6 @@ export function PackagesClient() {
     const [detailRow, setDetailRow] = useState<Row | null>(null);
     const [showComparison, setShowComparison] = useState(false);
 
-    if (isLoading || !schema) {
-        return <div className="p-8 flex justify-center"><Loader2 className="animate-spin w-8 h-8 text-indigo-500" /></div>;
-    }
-
     // Filter rows preserving original CSV indices (for correct image mapping)
     const filteredRows = useMemo(() => {
         const term = search.trim().toLowerCase();
@@ -61,6 +57,10 @@ export function PackagesClient() {
                 )
             );
     }, [rows, search]);
+
+    if (isLoading || !schema) {
+        return <div className="p-8 flex justify-center"><Loader2 className="animate-spin w-8 h-8 text-indigo-500" /></div>;
+    }
 
     const selectedRows = selectedIndices
         .map((origIdx) => rows[origIdx])
@@ -80,9 +80,9 @@ export function PackagesClient() {
     };
 
     // Compute platform totals
-    const fbReachCol = schema.numericColumns.find(c => c.startsWith("fb_") && c.includes("reach"));
-    const igReachCol = schema.numericColumns.find(c => c.startsWith("ig_") && c.includes("reach"));
-    const totalReachCol = schema.numericColumns.find(c => c.includes("total") && c.includes("reach"));
+    const fbReachCol = schema.numericColumns.find(c => (c.startsWith("fb_") && c.includes("reach")) || c === "FB Reach");
+    const igReachCol = schema.numericColumns.find(c => (c.startsWith("ig_") && c.includes("reach")) || c === "IG Reach");
+    const totalReachCol = schema.numericColumns.find(c => (c.includes("total") && c.includes("reach")) || c === "Combined Reach");
     const sum = (col?: string) => col ? rows.reduce((s, r) => s + (typeof r[col] === "number" ? (r[col] as number) : 0), 0) : 0;
     const fbTotal = sum(fbReachCol);
     const igTotal = sum(igReachCol);

@@ -41,15 +41,15 @@ function fmt(v: unknown): string {
 
 function getStats(row: Row) {
     const keys = Object.keys(row);
-    const totalReachCol = keys.find(k => k.includes("total") && k.includes("reach"));
-    const fbReachCol = keys.find(k => k.startsWith("fb_") && k.includes("reach"));
-    const igReachCol = keys.find(k => k.startsWith("ig_") && k.includes("reach"));
-    const fbReactCol = keys.find(k => k.startsWith("fb_") && k.includes("react"));
-    const igReactCol = keys.find(k => k.startsWith("ig_") && k.includes("react"));
-    const fbClicksCol = keys.find(k => k.startsWith("fb_") && k.includes("click") && !k.includes("link"));
-    const igSaveCol = keys.find(k => k.startsWith("ig_") && k.includes("save"));
-    const convCol = keys.find(k => k.includes("conversation"));
-    const spendCol = keys.find(k => k.includes("spend"));
+    const totalReachCol = keys.find(k => (k.includes("total") && k.includes("reach")) || k === "Combined Reach");
+    const fbReachCol = keys.find(k => (k.startsWith("fb_") && k.includes("reach")) || k === "FB Reach");
+    const igReachCol = keys.find(k => (k.startsWith("ig_") && k.includes("reach")) || k === "IG Reach");
+    const fbReactCol = keys.find(k => (k.startsWith("fb_") && k.includes("react")) || k === "FB Interactions (Reactions)");
+    const igReactCol = keys.find(k => (k.startsWith("ig_") && k.includes("react")) || k === "IG Interactions (Reactions)");
+    const fbClicksCol = keys.find(k => (k.startsWith("fb_") && k.includes("click") && !k.includes("link")) || k === "FB Total Clicks");
+    const igSaveCol = keys.find(k => (k.startsWith("ig_") && k.includes("save")) || k === "IG Interactions (Saves)");
+    const convCol = keys.find(k => k.includes("conversation") || k === "FB + IG Messaging Conversations Started");
+    const spendCol = keys.find(k => k.includes("spend") || k === "Amount Spent (USD)");
     return {
         totalReach: totalReachCol ? row[totalReachCol] : null,
         fbReach: fbReachCol ? row[fbReachCol] : null,
@@ -60,7 +60,7 @@ function getStats(row: Row) {
         igSaves: igSaveCol ? row[igSaveCol] : null,
         conversations: convCol ? row[convCol] : null,
         adSpend: spendCol ? row[spendCol] : null,
-        isPaid: spendCol ? (row[spendCol] !== null && row[spendCol] !== undefined) : false,
+        isPaid: spendCol ? (row[spendCol] !== null && row[spendCol] !== undefined && row[spendCol] !== "") : false,
     };
 }
 
@@ -82,7 +82,7 @@ export function PackageCard({
     imagePath,
 }: PackageCardProps) {
     const [imgError, setImgError] = useState(false);
-    const country = String(row["country"] ?? "Unknown");
+    const country = String(row["Package"] || row["package"] || row["country"] || "Unknown");
     const datePublished = String(row["date_published"] ?? "");
     const theme = getTheme(country);
     const stats = getStats(row);
