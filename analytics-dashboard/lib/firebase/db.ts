@@ -20,7 +20,7 @@ const PACKAGES_COLLECTION = "packages";
  * We cast the result to our existing `Row` type to maintain compatibility with the UI.
  */
 export async function getPackages(): Promise<Row[]> {
-    const q = query(collection(db, PACKAGES_COLLECTION), orderBy("package"));
+    const q = query(collection(db, PACKAGES_COLLECTION), orderBy("Package"));
     const querySnapshot = await getDocs(q);
 
     const packages: Row[] = [];
