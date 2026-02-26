@@ -90,8 +90,8 @@ export default function DataEntryPage() {
             if (prev["Combined Reach"] !== newReach || prev["Combined Total Interactions"] !== newInteractions) {
                 return {
                     ...prev,
-                    "Combined Reach": newReach > 0 ? newReach : "",
-                    "Combined Total Interactions": newInteractions > 0 ? newInteractions : ""
+                    "Combined Reach": newReach,
+                    "Combined Total Interactions": newInteractions
                 };
             }
             return prev;
@@ -258,7 +258,7 @@ export default function DataEntryPage() {
                         <Input
                             type={field.type === "date" ? "text" : field.type}
                             placeholder={field.type === "date" ? "DD-MMM-YY" : ""}
-                            value={formData[field.name] || ""}
+                            value={formData[field.name] ?? ""}
                             onChange={(e) => handleInputChange(field.name, e.target.value, field.type)}
                             step={field.type === "number" ? "any" : undefined}
                             className={`h-9 text-sm border-slate-200 dark:border-white/10 ${field.readOnly ? "bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-not-allowed" : "bg-white dark:bg-black/40"}`}
@@ -383,7 +383,7 @@ export default function DataEntryPage() {
                                                 </label>
                                                 <Input
                                                     type={field.type === "date" ? "text" : field.type}
-                                                    value={formData[field.name] || ""}
+                                                    value={formData[field.name] ?? ""}
                                                     onChange={(e) => handleInputChange(field.name, e.target.value, field.type)}
                                                     step={field.type === "number" ? "any" : undefined}
                                                     className="h-9 text-sm bg-white dark:bg-black/40 border-indigo-200 dark:border-indigo-500/20"
