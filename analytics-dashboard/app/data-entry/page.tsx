@@ -184,9 +184,10 @@ export default function DataEntryPage() {
                 });
             }
 
-            // Clean up empty strings from numbers so they don't break Firestore or charts
+            // Clean up empty strings and NaN from numbers so they don't break Firestore or charts
             Object.keys(packageToSave).forEach(key => {
-                if (packageToSave[key] === "") {
+                const val = packageToSave[key];
+                if (val === "" || val === undefined || Number.isNaN(val)) {
                     delete packageToSave[key];
                 }
             });
@@ -204,9 +205,9 @@ export default function DataEntryPage() {
             setEditingId(null);
             setShowForm(false);
             await loadData();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error saving package", error);
-            alert("Failed to save data. Please make sure all required fields are filled correctly.");
+            alert(`Failed to save data. Error: ${error?.message || String(error)}\nPlease check your inputs or Firebase permissions.`);
         } finally {
             setIsSubmitting(false);
         }
