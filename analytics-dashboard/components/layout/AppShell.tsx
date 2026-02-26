@@ -11,16 +11,20 @@ import {
     Menu,
     X,
     TrendingUp,
+    LogOut,
+    Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/packages", label: "Packages", icon: Package },
     { href: "/insights", label: "Insights", icon: Lightbulb },
+    { href: "/data-entry", label: "Data Entry", icon: Database },
     { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -55,6 +59,8 @@ function NavLink({
 }
 
 function Sidebar({ onClose }: { onClose?: () => void }) {
+    const { logout } = useAuth();
+
     return (
         <aside className="flex flex-col h-full w-64 px-4 py-6">
             <div className="flex items-center gap-2.5 px-3 mb-8">
@@ -75,7 +81,14 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
                     <NavLink key={item.href} {...item} onClick={onClose} />
                 ))}
             </nav>
-            <div className="pt-4 border-t border-slate-100 dark:border-white/5 px-3">
+            <div className="pt-4 border-t border-slate-100 dark:border-white/5 px-3 flex flex-col gap-4">
+                <button
+                    onClick={logout}
+                    className="flex items-center gap-3 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors w-full text-left"
+                >
+                    <LogOut className="w-4 h-4" />
+                    Sign Out
+                </button>
                 <p className="text-xs text-slate-400 dark:text-slate-500">
                     Social Media Analytics
                     <br />
@@ -88,6 +101,11 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const [mobileOpen, setMobileOpen] = useState(false);
+    const pathname = usePathname();
+
+    if (pathname === "/login") {
+        return <>{children}</>;
+    }
 
     return (
         <div className="flex h-screen bg-slate-50 dark:bg-[#0a0a0f] overflow-hidden">

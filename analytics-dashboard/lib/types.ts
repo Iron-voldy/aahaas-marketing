@@ -1,5 +1,6 @@
 export interface Row {
-  [key: string]: string | number | null;
+  id?: string;
+  [key: string]: string | number | null | undefined;
 }
 
 export interface InferredSchema {

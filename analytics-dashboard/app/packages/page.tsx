@@ -1,12 +1,5 @@
-import { loadCsv } from "@/lib/loadCsv";
-import { inferSchema } from "@/lib/inferSchema";
 import { PackagesClient } from "@/components/table/PackagesClient";
 
-export const dynamic = "force-dynamic";
-
-export default async function PackagesPage() {
-    const { rows, lastUpdated } = await loadCsv();
-    const schema = inferSchema(rows);
-
-    return <PackagesClient rows={rows} schema={schema} lastUpdated={lastUpdated} />;
+export default function PackagesPage() {
+    return <PackagesClient />;
 }

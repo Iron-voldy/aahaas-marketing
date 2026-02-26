@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { LayoutGrid, Table2, GitCompare, X, Search, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,16 +11,12 @@ import { PackageComparisonPanel } from "@/components/packages/PackageComparisonP
 import { PackagesTable } from "@/components/table/PackagesTable";
 import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 import type { Row, InferredSchema } from "@/lib/types";
-import { useCloudCache } from "@/hooks/useCloudCache";
 import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
+import { getPackages } from "@/lib/firebase/db";
+import { inferSchema } from "@/lib/inferSchema";
 
 type ViewMode = "cards" | "table";
-
-interface PackagesClientProps {
-    rows: Row[];
-    schema: InferredSchema;
-    lastUpdated?: string | null;
-}
 
 // Map row number (1-indexed, zero-padded to 2 digits) → /images/packages/01.jpg
 // This matches the file naming (01.jpg, 02.jpg … 14.jpg) to the CSV row order exactly.
@@ -29,14 +25,30 @@ function getFlyerImage(rowIndex: number): string {
     return `/images/packages/${n}.jpg`;
 }
 
-export function PackagesClient({ rows: serverRows, schema, lastUpdated: serverLastUpdated }: PackagesClientProps) {
-    const { rows, lastUpdated } = useCloudCache(serverRows, serverLastUpdated ?? null);
+export function PackagesClient() {
+    const [rows, setRows] = useState<Row[]>([]);
+    const [schema, setSchema] = useState<InferredSchema | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        getPackages()
+            .then((data) => {
+                setRows(data);
+                setSchema(inferSchema(data));
+            })
+            .catch(console.error)
+            .finally(() => setIsLoading(false));
+    }, []);
 
     const [viewMode, setViewMode] = useState<ViewMode>("cards");
     const [search, setSearch] = useState("");
     const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
     const [detailRow, setDetailRow] = useState<Row | null>(null);
     const [showComparison, setShowComparison] = useState(false);
+
+    if (isLoading || !schema) {
+        return <div className="p-8 flex justify-center"><Loader2 className="animate-spin w-8 h-8 text-indigo-500" /></div>;
+    }
 
     // Filter rows preserving original CSV indices (for correct image mapping)
     const filteredRows = useMemo(() => {
@@ -84,15 +96,6 @@ export function PackagesClient({ rows: serverRows, schema, lastUpdated: serverLa
                     <div>
                         <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
                             Packages
-                            {lastUpdated && (
-                                <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-md border border-slate-200 dark:border-white/10">
-                                    <span className="relative flex h-1.5 w-1.5">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                                    </span>
-                                    Updated {lastUpdated}
-                                </span>
-                            )}
                         </h1>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                             {filteredRows.length} packages — click flyers to explore stats
@@ -229,7 +232,7 @@ export function PackagesClient({ rows: serverRows, schema, lastUpdated: serverLa
                                         isSelected={selectedIndices.includes(originalIndex)}
                                         onToggleSelect={() => toggleSelect(originalIndex)}
                                         onViewDetail={() => setDetailRow(row)}
-                                        imagePath={getFlyerImage(originalIndex)}
+                                        imagePath={(row.imageUrl as string) || getFlyerImage(originalIndex)}
                                     />
                                 ))}
                             </div>

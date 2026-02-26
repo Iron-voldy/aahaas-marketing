@@ -8,17 +8,26 @@ import { DonutChart } from "@/components/dashboard/Charts/DonutChart";
 import { CompareChart } from "@/components/dashboard/Charts/CompareChart";
 import { useFilters } from "@/hooks/useFilters";
 import { computeKpis } from "@/lib/aggregate";
+import { getPackages } from "@/lib/firebase/db";
+import { inferSchema } from "@/lib/inferSchema";
 import type { Row, InferredSchema } from "@/lib/types";
-import { useCloudCache } from "@/hooks/useCloudCache";
+import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 
-interface DashboardClientProps {
-    rows: Row[];
-    schema: InferredSchema;
-    lastUpdated?: string | null;
-}
+export function DashboardClient() {
+    const [rows, setRows] = useState<Row[]>([]);
+    const [schema, setSchema] = useState<InferredSchema | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
-export function DashboardClient({ rows: serverRows, schema, lastUpdated: serverLastUpdated }: DashboardClientProps) {
-    const { rows, lastUpdated } = useCloudCache(serverRows, serverLastUpdated ?? null);
+    useEffect(() => {
+        getPackages()
+            .then((data) => {
+                setRows(data);
+                setSchema(inferSchema(data));
+            })
+            .catch(console.error)
+            .finally(() => setIsLoading(false));
+    }, []);
 
     const {
         filters,
@@ -27,7 +36,11 @@ export function DashboardClient({ rows: serverRows, schema, lastUpdated: serverL
         setCategoryFilter,
         setSearch,
         reset,
-    } = useFilters(rows, schema.dateColumns);
+    } = useFilters(rows, schema?.dateColumns || []);
+
+    if (isLoading || !schema) {
+        return <div className="p-8 flex justify-center"><Loader2 className="animate-spin w-8 h-8 text-indigo-500" /></div>;
+    }
 
     const kpis = computeKpis(filteredRows, schema);
 
@@ -43,15 +56,6 @@ export function DashboardClient({ rows: serverRows, schema, lastUpdated: serverL
                         Social media performance for Aahaas travel packages
                     </p>
                 </div>
-                {lastUpdated && (
-                    <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 self-start sm:self-auto">
-                        <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                        </span>
-                        Last updated: <span className="text-slate-700 dark:text-slate-300">{lastUpdated}</span>
-                    </div>
-                )}
             </div>
 
             {/* Filters */}
