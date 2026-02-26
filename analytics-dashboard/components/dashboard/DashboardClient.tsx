@@ -7,12 +7,12 @@ import { TopBarChart } from "@/components/dashboard/Charts/TopBarChart";
 import { DonutChart } from "@/components/dashboard/Charts/DonutChart";
 import { CompareChart } from "@/components/dashboard/Charts/CompareChart";
 import { useFilters } from "@/hooks/useFilters";
-import { computeKpis } from "@/lib/aggregate";
+import { computeKpis, getLatestUpdateDate } from "@/lib/aggregate";
 import { getPackages } from "@/lib/firebase/db";
 import { inferSchema } from "@/lib/inferSchema";
 import type { Row, InferredSchema } from "@/lib/types";
 import { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Clock } from "lucide-react";
 
 export function DashboardClient() {
     const [rows, setRows] = useState<Row[]>([]);
@@ -43,6 +43,7 @@ export function DashboardClient() {
     }
 
     const kpis = computeKpis(filteredRows, schema);
+    const latestUpdate = getLatestUpdateDate(rows);
 
     return (
         <div className="flex flex-col gap-6 p-4 lg:p-6">
@@ -56,6 +57,12 @@ export function DashboardClient() {
                         Social media performance for Aahaas travel packages
                     </p>
                 </div>
+                {latestUpdate && (
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 px-2.5 py-1.5 rounded-md">
+                        <Clock className="w-3.5 h-3.5" />
+                        Last Synced: {latestUpdate}
+                    </div>
+                )}
             </div>
 
             {/* Filters */}

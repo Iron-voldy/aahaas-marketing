@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 
 const GENERAL_FIELDS = [
     { name: "Package", type: "text", label: "Package Name (e.g. S24/W24 - 101)" },
+    { name: "Destination", type: "text", label: "Destination (e.g. Singapore)" },
     { name: "Validity Period", type: "text", label: "Validity Period" },
     { name: "Date Published", type: "date", label: "Date Published" },
 ];

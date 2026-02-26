@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
@@ -63,18 +64,26 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
 
     return (
         <aside className="flex flex-col h-full w-64 px-4 py-6">
-            <div className="flex items-center gap-2.5 px-3 mb-8">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg shadow-violet-500/30">
-                    <TrendingUp className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                    <span className="font-bold text-slate-900 dark:text-white text-sm tracking-tight">
-                        Aahaas
-                    </span>
-                    <span className="text-violet-600 dark:text-violet-400 font-bold text-sm">
-                        Analytics
-                    </span>
-                </div>
+            <div className="flex items-center gap-2 px-3 mb-8">
+                {/* Light mode logo (red) */}
+                <Image
+                    src="/images/logo/aahaas-logo-red.png"
+                    alt="Aahaas Logo"
+                    width={100}
+                    height={32}
+                    className="h-8 w-auto object-contain dark:hidden"
+                />
+                {/* Dark mode logo (white) */}
+                <Image
+                    src="/images/logo/aahaas-logo-white.png"
+                    alt="Aahaas Logo"
+                    width={100}
+                    height={32}
+                    className="h-8 w-auto object-contain hidden dark:block"
+                />
+                <span className="text-violet-600 dark:text-violet-400 font-bold tracking-tight mt-1">
+                    Analytics
+                </span>
             </div>
             <nav className="flex flex-col gap-1 flex-1">
                 {navItems.map((item) => (
@@ -91,8 +100,6 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
                 </button>
                 <p className="text-xs text-slate-400 dark:text-slate-500">
                     Social Media Analytics
-                    <br />
-                    Data through Feb 2026
                 </p>
             </div>
         </aside>

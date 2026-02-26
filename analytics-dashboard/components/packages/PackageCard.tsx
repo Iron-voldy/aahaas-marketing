@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { Check, Eye, TrendingUp, MapPin, Calendar, Users, AlertCircle } from "lucide-react";
+import { Check, Eye, TrendingUp, MapPin, Calendar, Users, AlertCircle, Edit2 } from "lucide-react";
 import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,7 @@ interface PackageCardProps {
     isSelected: boolean;
     onToggleSelect: () => void;
     onViewDetail: () => void;
+    onQuickEdit: () => void;
     imagePath?: string | null;
 }
 
@@ -79,12 +80,14 @@ export function PackageCard({
     isSelected,
     onToggleSelect,
     onViewDetail,
+    onQuickEdit,
     imagePath,
 }: PackageCardProps) {
     const [imgError, setImgError] = useState(false);
-    const country = String(row["Package"] || row["package"] || row["country"] || "Unknown");
-    const datePublished = String(row["date_published"] ?? "");
-    const theme = getTheme(country);
+    const packageName = String(row["Package"] || row["package"] || row["country"] || "Unknown");
+    const destination = String(row["Destination"] || row["country"] || "Unknown");
+    const datePublished = String(row["Date Published"] || row["date_published"] || "");
+    const theme = getTheme(destination);
     const stats = getStats(row);
     const shortDate = datePublished.split(",")[0].trim();
     const showRealImage = !!imagePath && !imgError;
@@ -104,7 +107,7 @@ export function PackageCard({
                 {showRealImage ? (
                     <Image
                         src={imagePath!}
-                        alt={`${country} package flyer`}
+                        alt={`${packageName} package flyer`}
                         fill
                         className="object-cover transition-transform duration-500 hover:scale-105"
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
@@ -121,7 +124,7 @@ export function PackageCard({
                         <div className="absolute bottom-4 left-4 w-16 h-16 rounded-full bg-white/10 blur-lg" />
                         <div className="relative z-10 flex flex-col items-center gap-2 text-white px-4 text-center">
                             <span className="text-5xl drop-shadow-lg select-none">{theme.emoji}</span>
-                            <p className="text-xl font-bold tracking-wide drop-shadow">{country}</p>
+                            <p className="text-xl font-bold tracking-wide drop-shadow">{packageName}</p>
                             <p className="text-xs opacity-80 font-medium uppercase tracking-widest">Travel Package</p>
                         </div>
                         <div className="absolute bottom-2 left-0 right-0 flex justify-center">
@@ -153,8 +156,13 @@ export function PackageCard({
                 <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
                         <MapPin className="w-3 h-3 text-violet-500 flex-shrink-0" />
-                        <h3 className="font-semibold text-slate-900 dark:text-white text-sm truncate">{country}</h3>
+                        <h3 className="font-semibold text-slate-900 dark:text-white text-sm truncate" title={packageName}>{packageName}</h3>
                     </div>
+                    {destination !== "Unknown" && (
+                        <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium ml-4 mt-0.5 mb-1 bg-slate-100 dark:bg-white/5 w-fit px-1.5 py-0.5 rounded-sm">
+                            <span>{destination}</span>
+                        </div>
+                    )}
                     <div className="flex items-center gap-1 text-xs text-slate-400 ml-4">
                         <Calendar className="w-2.5 h-2.5" />
                         <span className="truncate">{shortDate}</span>
@@ -243,7 +251,19 @@ export function PackageCard({
 
                 {/* Action buttons — always visible at bottom */}
                 <div className="flex gap-2 mt-auto pt-1">
-                    {/* View Stats — always visible, no hover needed */}
+                    {/* Edit Stats */}
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="px-2.5 h-8 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-white/10"
+                        onClick={onQuickEdit}
+                        type="button"
+                        title="Quick Edit Stats"
+                    >
+                        <Edit2 className="w-3.5 h-3.5" />
+                    </Button>
+
+                    {/* View Stats */}
                     <Button
                         size="sm"
                         className="flex-1 h-8 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold gap-1.5"

@@ -62,6 +62,7 @@ export async function addPackage(data: Omit<Row, "id">): Promise<string> {
     const cleanedData = Object.fromEntries(
         Object.entries(data).filter(([_, v]) => v !== undefined)
     );
+    cleanedData.updatedAt = new Date().toISOString();
 
     const docRef = await addDoc(collection(db, PACKAGES_COLLECTION), cleanedData);
     return docRef.id;
@@ -80,6 +81,7 @@ export async function updatePackage(id: string, data: Partial<Row>): Promise<voi
     const cleanedData = Object.fromEntries(
         Object.entries(updateData).filter(([_, v]) => v !== undefined)
     );
+    cleanedData.updatedAt = new Date().toISOString();
 
     await updateDoc(docRef, cleanedData);
 }

@@ -42,8 +42,9 @@ interface PackageDetailModalProps {
 export function PackageDetailModal({ row, open, onClose }: PackageDetailModalProps) {
     if (!row) return null;
 
-    const country = String(row["Package"] || row["package"] || row["country"] || "Unknown");
-    const datePublished = String(row["date_published"] ?? "");
+    const packageName = String(row["Package"] || row["package"] || row["country"] || "Unknown");
+    const destination = String(row["Destination"] || row["country"] || "Unknown");
+    const datePublished = String(row["Date Published"] || row["date_published"] || "");
     const validity = String(row["validity_period"] ?? "");
 
     const keys = Object.keys(row);
@@ -100,7 +101,12 @@ export function PackageDetailModal({ row, open, onClose }: PackageDetailModalPro
                     <div className="flex items-center gap-2 mb-3">
                         <span className="text-[11px] font-bold tracking-[0.2em] text-white/60 uppercase">Aahaas Analytics</span>
                     </div>
-                    <h2 className="text-2xl font-bold text-white">{country}</h2>
+                    <h2 className="text-2xl font-bold text-white pr-4">{packageName}</h2>
+                    {destination !== "Unknown" && (
+                        <div className="mt-1 flex items-center gap-1.5 w-fit rounded-sm bg-white/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-widest text-[#e62b2b] backdrop-blur-sm">
+                            <span>{destination}</span>
+                        </div>
+                    )}
                     <p className="text-white/75 text-sm mt-1">{datePublished.split(",")[0]}</p>
                     {validity && (
                         <p className="text-white/55 text-xs mt-0.5">Valid until: {validity}</p>

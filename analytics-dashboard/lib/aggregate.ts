@@ -213,7 +213,7 @@ export function computeKpis(rows: Row[], schema: InferredSchema): KpiCard[] {
         kpis.push({
             label: "Facebook Reach",
             value: sumColumn(rows, fbReachCol).toLocaleString(),
-            icon: "bar-chart-2",
+            icon: "facebook",
         });
     }
 
@@ -243,7 +243,7 @@ export function computeKpis(rows: Row[], schema: InferredSchema): KpiCard[] {
     }
 
     // Top destination by total reach
-    const countryCol = categoricalColumns.find((c) => c.includes("country") || c === "country" || c === "Package" || c === "package");
+    const countryCol = categoricalColumns.find((c) => c === "Destination" || c.includes("country") || c === "Package" || c === "package");
     if (countryCol && reachCol) {
         const grouped = groupBy(rows, countryCol);
         let topCountry = "";
@@ -294,7 +294,7 @@ export function generateInsights(
         numericColumns[0];
 
     const catCol =
-        categoricalColumns.find((c) => c.includes("country") || c === "Package" || c === "package") ||
+        categoricalColumns.find((c) => c === "Destination" || c.includes("country") || c === "Package" || c === "package") ||
         categoricalColumns[0];
 
     const dateCol = dateColumns[0] ?? null;
@@ -414,4 +414,43 @@ export function generateInsights(
         totalRecords: rows.length,
         dateRange,
     };
+}
+
+// ─── Last Updated Computation ────────────────────────────────────────────────
+export function getLatestUpdateDate(rows: Row[]): string | null {
+    if (rows.length === 0) return null;
+    let latest = 0;
+    for (const row of rows) {
+        if (row.updatedAt && typeof row.updatedAt === "string") {
+            const time = new Date(row.updatedAt).getTime();
+            if (time > latest && !isNaN(time)) latest = time;
+        } else {
+            // Fallback to published date if no updatedAt exists yet
+            const pubDate = String(row["Date Published"] || row["date_published"] || "");
+            if (pubDate) {
+                let time = new Date(pubDate).getTime();
+                if (isNaN(time)) {
+                    // Try DD-MM-YYYY
+                    const parts = pubDate.split("-");
+                    if (parts.length === 3) {
+                        time = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+                    }
+                }
+                if (time > latest && !isNaN(time)) latest = time;
+            }
+        }
+    }
+
+    // If absolutely no dates found, just say "Unknown"
+    if (latest === 0) return "Unknown";
+
+    const date = new Date(latest);
+    return date.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true
+    });
 }

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { LayoutGrid, Table2, GitCompare, X, Search, ImagePlus } from "lucide-react";
+import { LayoutGrid, Table2, GitCompare, X, Search, ImagePlus, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PackageCard } from "@/components/packages/PackageCard";
 import { PackageDetailModal } from "@/components/packages/PackageDetailModal";
 import { PackageComparisonPanel } from "@/components/packages/PackageComparisonPanel";
+import { QuickEditStatsModal } from "@/components/packages/QuickEditStatsModal";
 import { PackagesTable } from "@/components/table/PackagesTable";
 import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 import type { Row, InferredSchema } from "@/lib/types";
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import { getPackages } from "@/lib/firebase/db";
 import { inferSchema } from "@/lib/inferSchema";
+import { getLatestUpdateDate } from "@/lib/aggregate";
 
 type ViewMode = "cards" | "table";
 
@@ -44,6 +46,7 @@ export function PackagesClient() {
     const [search, setSearch] = useState("");
     const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
     const [detailRow, setDetailRow] = useState<Row | null>(null);
+    const [quickEditRow, setQuickEditRow] = useState<Row | null>(null);
     const [showComparison, setShowComparison] = useState(false);
 
     // Filter rows preserving original CSV indices (for correct image mapping)
@@ -87,6 +90,7 @@ export function PackagesClient() {
     const fbTotal = sum(fbReachCol);
     const igTotal = sum(igReachCol);
     const combinedTotal = sum(totalReachCol) || (fbTotal + igTotal);
+    const latestUpdate = getLatestUpdateDate(rows);
 
     return (
         <div className="flex flex-col min-h-full pb-8">
@@ -102,8 +106,15 @@ export function PackagesClient() {
                         </p>
                     </div>
 
+                    {latestUpdate && (
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 px-2.5 py-1.5 rounded-md">
+                            <Clock className="w-3.5 h-3.5" />
+                            Last Synced: {latestUpdate}
+                        </div>
+                    )}
+
                     {/* View toggle */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <div className="flex rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden">
                             <button
                                 onClick={() => setViewMode("cards")}
@@ -232,6 +243,7 @@ export function PackagesClient() {
                                         isSelected={selectedIndices.includes(originalIndex)}
                                         onToggleSelect={() => toggleSelect(originalIndex)}
                                         onViewDetail={() => setDetailRow(row)}
+                                        onQuickEdit={() => setQuickEditRow(row)}
                                         imagePath={(row.imageUrl as string) || getFlyerImage(originalIndex)}
                                     />
                                 ))}
@@ -251,6 +263,25 @@ export function PackagesClient() {
                 row={detailRow}
                 open={!!detailRow}
                 onClose={() => setDetailRow(null)}
+            />
+
+            {/* Quick Edit Stats Modal */}
+            <QuickEditStatsModal
+                row={quickEditRow}
+                open={!!quickEditRow}
+                onClose={() => setQuickEditRow(null)}
+                onUpdateSuccess={() => {
+                    setQuickEditRow(null);
+                    // Refresh data after edit
+                    setIsLoading(true);
+                    getPackages()
+                        .then((data) => {
+                            setRows(data);
+                            setSchema(inferSchema(data));
+                        })
+                        .catch(console.error)
+                        .finally(() => setIsLoading(false));
+                }}
             />
         </div>
     );

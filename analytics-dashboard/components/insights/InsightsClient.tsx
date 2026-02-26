@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { getPackages } from "@/lib/firebase/db";
 import { inferSchema } from "@/lib/inferSchema";
-import { generateInsights } from "@/lib/aggregate";
+import { generateInsights, getLatestUpdateDate } from "@/lib/aggregate";
 import type { Row, InferredSchema } from "@/lib/types";
 import {
     TrendingUp,
@@ -11,6 +11,7 @@ import {
     CheckCircle2,
     BarChart2,
     Calendar,
+    Clock,
     Loader2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +37,7 @@ export function InsightsClient() {
     }
 
     const insights = generateInsights(rows, schema);
+    const latestUpdate = getLatestUpdateDate(rows);
 
     return (
         <div className="flex flex-col gap-6 p-4 lg:p-6 pb-24">
@@ -49,6 +51,12 @@ export function InsightsClient() {
                         Auto-generated analysis from your package data
                     </p>
                 </div>
+                {latestUpdate && (
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 px-2.5 py-1.5 rounded-md">
+                        <Clock className="w-3.5 h-3.5" />
+                        Last Synced: {latestUpdate}
+                    </div>
+                )}
             </div>
 
             {/* Summary bullets */}
