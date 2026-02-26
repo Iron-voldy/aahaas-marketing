@@ -1,5 +1,6 @@
 import { loadCsv } from "@/lib/loadCsv";
 import { inferSchema } from "@/lib/inferSchema";
+import { SyncForm } from "@/components/settings/SyncForm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Database, GitBranch, Table2, Zap } from "lucide-react";
@@ -8,13 +9,24 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-    const rows = await loadCsv();
+    const { rows, lastUpdated } = await loadCsv();
     const schema = inferSchema(rows);
 
     return (
         <div className="flex flex-col gap-6 p-4 lg:p-6">
             <div>
-                <h1 className="text-xl font-bold text-slate-900 dark:text-white">Settings</h1>
+                <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+                    Settings
+                    {lastUpdated && (
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-md border border-slate-200 dark:border-white/10">
+                            <span className="relative flex h-1.5 w-1.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                            </span>
+                            Updated {lastUpdated}
+                        </span>
+                    )}
+                </h1>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                     Dataset info and app configuration
                 </p>
@@ -102,6 +114,9 @@ export default async function SettingsPage() {
                     ))}
                 </CardContent>
             </Card>
+
+            {/* Cloud Sync */}
+            <SyncForm lastUpdated={lastUpdated} />
 
             {/* CSV replacement info */}
             <Card className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111118] shadow-sm">

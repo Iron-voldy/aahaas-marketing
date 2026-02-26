@@ -5,7 +5,8 @@ import { PackagesClient } from "@/components/table/PackagesClient";
 export const dynamic = "force-dynamic";
 
 export default async function PackagesPage() {
-    const rows = await loadCsv();
+    const { rows, lastUpdated } = await loadCsv();
     const schema = inferSchema(rows);
-    return <PackagesClient rows={rows} schema={schema} />;
+
+    return <PackagesClient rows={rows} schema={schema} lastUpdated={lastUpdated} />;
 }

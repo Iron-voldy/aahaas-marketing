@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { Check, Eye, TrendingUp, MapPin, Calendar, Users, AlertCircle, Link2 } from "lucide-react";
+import { Check, Eye, TrendingUp, MapPin, Calendar, Users, AlertCircle } from "lucide-react";
 import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,9 +70,7 @@ interface PackageCardProps {
     isSelected: boolean;
     onToggleSelect: () => void;
     onViewDetail: () => void;
-    onLinkPost?: () => void;
     imagePath?: string | null;
-    isLinked?: boolean;
 }
 
 export function PackageCard({
@@ -81,9 +79,7 @@ export function PackageCard({
     isSelected,
     onToggleSelect,
     onViewDetail,
-    onLinkPost,
     imagePath,
-    isLinked,
 }: PackageCardProps) {
     const [imgError, setImgError] = useState(false);
     const country = String(row["country"] ?? "Unknown");
@@ -247,7 +243,7 @@ export function PackageCard({
 
                 {/* Action buttons — always visible at bottom */}
                 <div className="flex gap-2 mt-auto pt-1">
-                    {/* View Stats */}
+                    {/* View Stats — always visible, no hover needed */}
                     <Button
                         size="sm"
                         className="flex-1 h-8 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold gap-1.5"
@@ -255,27 +251,8 @@ export function PackageCard({
                         type="button"
                     >
                         <Eye className="w-3.5 h-3.5" />
-                        Stats
+                        View Stats
                     </Button>
-
-                    {/* Link Post */}
-                    {onLinkPost && (
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className={cn(
-                                "flex-1 h-8 rounded-xl text-xs font-semibold gap-1.5",
-                                isLinked
-                                    ? "border-[#1877F2]/30 text-[#1877F2] bg-[#1877F2]/5 hover:bg-[#1877F2]/10"
-                                    : "border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:border-violet-400 hover:text-violet-600"
-                            )}
-                            onClick={onLinkPost}
-                            type="button"
-                        >
-                            <Link2 className="w-3.5 h-3.5" />
-                            {isLinked ? "Linked" : "Link"}
-                        </Button>
-                    )}
 
                     {/* Compare toggle */}
                     <Button

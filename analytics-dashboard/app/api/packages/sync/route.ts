@@ -1,61 +1,71 @@
-import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { NextResponse } from "next/server";
+import { parseCsv } from "@/lib/loadCsv";
 
-// A dedicated JSON file to store links securely without breaking the CSV structure
-const LINKS_PATH = path.join(process.cwd(), "public", "data", "links.json");
-
-function getLinks() {
-    if (fs.existsSync(LINKS_PATH)) {
-        return JSON.parse(fs.readFileSync(LINKS_PATH, "utf-8"));
-    }
-    return {};
-}
-
-function saveLinks(links: any) {
-    fs.writeFileSync(LINKS_PATH, JSON.stringify(links, null, 2), "utf-8");
-}
-
-export async function GET() {
+export async function POST(request: Request) {
     try {
-        const links = getLinks();
-        return NextResponse.json({ links });
-    } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 500 });
-    }
-}
+        const { url } = await request.json();
 
-export async function POST(req: Request) {
-    try {
-        // updates shape: { rowIndex: number, fb_post_id?: string, ig_post_id?: string, stats?: any }
-        const { updates } = await req.json();
-        if (!updates || !Array.isArray(updates)) {
-            return NextResponse.json({ error: "Invalid updates format. Expected array." }, { status: 400 });
+        if (!url) {
+            return NextResponse.json({ error: "URL is required" }, { status: 400 });
         }
 
-        const links = getLinks();
-
-        for (const u of updates) {
-            if (!links[u.rowIndex]) links[u.rowIndex] = {};
-
-            if (u.fb_post_id !== undefined) links[u.rowIndex].fb_post_id = u.fb_post_id;
-            if (u.ig_post_id !== undefined) links[u.rowIndex].ig_post_id = u.ig_post_id;
-
-            // If passing explicitly newly fetched stats
-            if (u.stats) {
-                links[u.rowIndex].latest_stats = u.stats;
-                links[u.rowIndex].last_sync = new Date().toISOString();
+        // Auto-transform sharepoint/onedrive links if possible to force download
+        // E.g., change ?e=xxxxx to ?download=1
+        let downloadUrl = url;
+        try {
+            const urlObj = new URL(url);
+            if (urlObj.hostname.includes("sharepoint.com") || urlObj.hostname.includes("onedrive.live.com")) {
+                urlObj.searchParams.set("download", "1");
+                downloadUrl = urlObj.toString();
             }
+        } catch (e) { /* ignore invalid URL parse */ }
+
+        const res = await fetch(downloadUrl, {
+            cache: "no-store",
+            // Some cloud providers require a user-agent
+            headers: {
+                "User-Agent": "Mozilla/5.0 (compatible; Aahaas-Analytics/1.0)",
+            }
+        });
+
+        if (!res.ok) {
+            return NextResponse.json({
+                error: `Failed to fetch from URL (Status: ${res.status} ${res.statusText})`
+            }, { status: 400 });
         }
 
-        saveLinks(links);
+        const text = await res.text();
 
-        return NextResponse.json({ success: true, links });
+        // Basic validation: Check if it looks like a CSV (contains our expected headers)
+        if (!text.toLowerCase().includes("package") && !text.toLowerCase().includes("facebook")) {
+            return NextResponse.json({
+                error: "The returned file does not appear to be a valid Aahaas Statistics CSV format. Please ensure the link is a public, direct download link to the CSV file."
+            }, { status: 400 });
+        }
+
+        // Try writing to local FS if in development (Will fail on Vercel, which is fine)
+        try {
+            const csvPath = path.join(process.cwd(), "public", "data", "packages.csv");
+            fs.writeFileSync(csvPath, text, "utf-8");
+            console.log("[Sync API] Successfully updated local packages.csv");
+        } catch (fsError) {
+            console.log("[Sync API] Running in read-only mode (e.g. Vercel). Local file not updated, relying on browser cache.");
+        }
+
+        // Parse and return to client so it can cache it in localStorage
+        const result = parseCsv(text);
+
+        return NextResponse.json({
+            success: true,
+            rowCount: result.rows.length,
+            rows: result.rows,
+            lastUpdated: result.lastUpdated
+        });
+
     } catch (error: any) {
-        console.error("Failed to update links:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to update links" },
-            { status: 500 }
-        );
+        console.error("[Sync API Error]", error);
+        return NextResponse.json({ error: "Internal server error: " + error.message }, { status: 500 });
     }
 }

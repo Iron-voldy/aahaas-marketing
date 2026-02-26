@@ -2,6 +2,11 @@ import fs from "fs";
 import path from "path";
 import type { Row } from "./types";
 
+export interface LoadCsvResult {
+    rows: Row[];
+    lastUpdated: string | null;
+}
+
 // Split a single CSV line respecting double-quoted fields
 function splitCsvLine(line: string): string[] {
     const result: string[] = [];
@@ -62,9 +67,7 @@ function buildColumnName(section: string, sub: string, col: string): string {
     return full || "col";
 }
 
-function parseCsv(text: string): Row[] {
-    // Split all lines, keeping quoted multi-line fields intact
-    // Strategy: scan character by character to split logical lines
+export function parseCsv(text: string): LoadCsvResult {
     const logicalLines: string[] = [];
     let curLine = "";
     let inQ = false;
@@ -83,62 +86,66 @@ function parseCsv(text: string): Row[] {
     }
     if (curLine) logicalLines.push(curLine);
 
-    // The CSV has exactly 3 header rows, then data rows
-    if (logicalLines.length < 4) return [];
+    if (logicalLines.length < 4) return { rows: [], lastUpdated: null };
 
-    // Row 0: section headers (Package Information, Facebook, Instagram, TOTAL…, PAID ADS)
-    // Row 1: sub-headers (Interactions, Statistics, …)
-    // Row 2: column names (Package, Country, Date Published, …)
     const row0 = splitCsvLine(logicalLines[0]).map(c => c.trim());
     const row1 = splitCsvLine(logicalLines[1]).map(c => c.trim());
     const row2 = splitCsvLine(logicalLines[2]).map(c => c.trim());
 
-    // Propagate section headers across their spanned columns
-    const sectionRow = propagate(row0);
+    // Extract Last Updated from Row 1, Column 1 (index 1) which is "21/02/2026"
+    // In row0, index 1 is "Last Updated Date and Time"
+    let lastUpdated = null;
+    if (row1.length > 1 && row1[1]) {
+        lastUpdated = row1[1];
+    } else if (row0.length > 1 && row0[1] && row0[1].includes("Updated")) {
+        // sometimes data shifts, check if it's in row 1
+    }
 
-    // Build final column keys
+    const sectionRow = propagate(row0);
     const maxCols = Math.max(sectionRow.length, row1.length, row2.length);
     const rawKeys: string[] = [];
     for (let i = 0; i < maxCols; i++) {
+        // Skip the "Last Updated Date and Time" column so we don't treat it as a data property
+        if (i === 1) {
+            rawKeys.push("_ignore_last_updated");
+            continue;
+        }
         rawKeys.push(buildColumnName(sectionRow[i] ?? "", row1[i] ?? "", row2[i] ?? ""));
     }
 
-    // De-duplicate keys
     const seen: Record<string, number> = {};
     const keys = rawKeys.map(k => {
+        if (k === "_ignore_last_updated") return k;
         if (seen[k] !== undefined) { seen[k]++; return `${k}_${seen[k]}`; }
         seen[k] = 0; return k;
     });
 
-    // Parse data rows (from index 3 onward)
     const rows: Row[] = [];
     for (let li = 3; li < logicalLines.length; li++) {
         const line = logicalLines[li].trim();
-        if (!line) continue; // skip blank lines
+        if (!line) continue;
 
         const cells = splitCsvLine(logicalLines[li]);
-        // Skip completely empty or separator rows
         if (cells.every(c => !c.trim())) continue;
 
         const row: Row = {};
         keys.forEach((key, idx) => {
+            if (key === "_ignore_last_updated") return;
             row[key] = parseCell(cells[idx] ?? "");
         });
 
-        // Skip if the very first key (package type) is empty — it's not a real data row
-        const firstVal = Object.values(row)[0];
+        const firstVal = row[keys[0]];
         if (firstVal === null || firstVal === undefined) continue;
 
         rows.push(row);
     }
 
-    return rows;
+    return { rows, lastUpdated };
 }
 
-// Minimal fallback dataset used only when the CSV file cannot be read
-function getSampleData(): Row[] {
-    return [
-        {
+function getSampleData(): LoadCsvResult {
+    return {
+        rows: [{
             package: "Picture", country: "Singapore",
             date_published: "16 December 2025, 14:30",
             validity_period: "22nd December 2025",
@@ -146,16 +153,17 @@ function getSampleData(): Row[] {
             fb_reach: 1256, fb_total_clicks: 0, fb_link_clicks: 0,
             ig_reactions: 5, ig_comments: 0, ig_shares: 0, ig_saves: 0,
             ig_reach: 360, total_reach: 1616, total_reactions: 9, total_shares: 0, total_comments: 0,
-        },
-    ];
+        }],
+        lastUpdated: "Sample Data Mode"
+    };
 }
 
-export async function loadCsv(): Promise<Row[]> {
+export async function loadCsv(): Promise<LoadCsvResult> {
     const csvPath = path.join(process.cwd(), "public", "data", "packages.csv");
     try {
         const text = fs.readFileSync(csvPath, "utf-8");
-        const rows = parseCsv(text);
-        if (rows.length > 0) return rows;
+        const res = parseCsv(text);
+        if (res.rows.length > 0) return res;
         console.warn("[loadCsv] CSV parsed 0 rows — using sample data.");
         return getSampleData();
     } catch (err) {
