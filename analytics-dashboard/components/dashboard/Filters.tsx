@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { X, Search, SlidersHorizontal } from "lucide-react";
 import type { Row, InferredSchema } from "@/lib/types";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 interface FiltersProps {
     rows: Row[];
@@ -39,6 +39,19 @@ export function Filters({
 }: FiltersProps) {
     const { categoricalColumns, dateColumns } = schema;
     const [expanded, setExpanded] = useState(false);
+    const [isFocused, setIsFocused] = useState(false);
+    const searchRef = useRef<HTMLDivElement>(null);
+
+    // Handle clicks outside the search component
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+                setIsFocused(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     // Unique values for categorical columns
     const catOptions: Record<string, string[]> = {};
@@ -62,14 +75,57 @@ export function Filters({
         <div className="bg-white dark:bg-[#111118] border border-slate-200 dark:border-white/5 rounded-2xl p-4 shadow-sm">
             {/* Search + toggle */}
             <div className="flex items-center gap-3">
-                <div className="relative flex-1">
+                <div className="relative flex-1" ref={searchRef}>
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                     <Input
                         placeholder="Search packages..."
                         className="pl-9 h-9 rounded-xl text-sm bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10"
                         value={filters.searchTerm}
-                        onChange={(e) => onSearch(e.target.value)}
+                        onChange={(e) => {
+                            onSearch(e.target.value);
+                            setIsFocused(true);
+                        }}
+                        onFocus={() => setIsFocused(true)}
                     />
+
+                    {/* Auto-suggestions Dropdown */}
+                    {isFocused && filters.searchTerm.length > 0 && (
+                        <div className="absolute z-50 top-full left-0 right-0 mt-2 bg-white dark:bg-[#1a1a24] border border-slate-200 dark:border-white/10 rounded-xl shadow-xl overflow-hidden">
+                            {(() => {
+                                const term = filters.searchTerm.toLowerCase();
+                                const matches = Array.from(new Set(rows
+                                    .map(r => String(r["Package"] || r["package"] || r["country"] || ""))
+                                    .filter(name => name && name.toLowerCase().includes(term) && name.toLowerCase() !== term)
+                                )).slice(0, 6); // Max 6 suggestions
+
+                                if (matches.length === 0) return null;
+
+                                return (
+                                    <ul className="py-1">
+                                        {matches.map((match, i) => (
+                                            <li
+                                                key={i}
+                                                className="px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer transition-colors"
+                                                onClick={() => {
+                                                    onSearch(match);
+                                                    setIsFocused(false);
+                                                }}
+                                            >
+                                                {/* Bold the matching substring */}
+                                                <span>
+                                                    {match.substring(0, match.toLowerCase().indexOf(term))}
+                                                    <span className="font-bold text-violet-600 dark:text-violet-400">
+                                                        {match.substring(match.toLowerCase().indexOf(term), match.toLowerCase().indexOf(term) + term.length)}
+                                                    </span>
+                                                    {match.substring(match.toLowerCase().indexOf(term) + term.length)}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                );
+                            })()}
+                        </div>
+                    )}
                 </div>
                 <Button
                     variant="outline"

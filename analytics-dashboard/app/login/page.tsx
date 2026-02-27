@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
+import { logAccess } from "@/lib/firebase/db";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ export default function LoginPage() {
 
         try {
             await signInWithEmailAndPassword(auth, email, password);
+            await logAccess(email, "User logged into the admin dashboard.");
             router.push("/dashboard");
         } catch (err: any) {
             setError(err.message || "Failed to login. Please check your credentials.");

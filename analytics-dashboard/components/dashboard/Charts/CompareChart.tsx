@@ -52,7 +52,8 @@ export function CompareChart({ rows, schema }: CompareChartProps) {
         categoricalColumns.find((c) => c.includes("country")) || categoricalColumns[0] || ""
     );
     const [valueCol, setValueCol] = useState(
-        numericColumns.find((c) => c.includes("total") && c.includes("reach")) ||
+        numericColumns.find((c) => c.toLowerCase().includes("combined") && c.toLowerCase().includes("reach")) ||
+        numericColumns.find((c) => c.toLowerCase().includes("reach")) ||
         numericColumns[0] || ""
     );
 

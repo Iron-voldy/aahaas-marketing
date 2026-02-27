@@ -12,8 +12,16 @@ import {
 } from "firebase/firestore";
 import type { Row } from "@/lib/types";
 
-// The name of our Firestore collection
+// The name of our Firestore collections
 const PACKAGES_COLLECTION = "packages";
+const LOGS_COLLECTION = "audit_logs";
+
+export interface AuditLog {
+    id?: string;
+    email: string;
+    action: string;
+    timestamp: string;
+}
 
 /**
  * Fetch all packages from Firestore, ordered by 'package' name.
@@ -26,12 +34,30 @@ export async function getPackages(): Promise<Row[]> {
     const packages: Row[] = [];
     querySnapshot.forEach((docSnap) => {
         // We inject the Firestore document ID into the row data so we can edit/delete it later.
-        // We'll map the `id` field from Firestore to an optional id property if needed, 
-        // or just keep it in the object.
         packages.push({
             id: docSnap.id,
             ...docSnap.data(),
         } as Row);
+    });
+
+    // Helper to safely parse dates that might be DD-MM-YYYY
+    const parseSafeDate = (dateStr: string) => {
+        if (!dateStr) return 0;
+        let time = new Date(dateStr).getTime();
+        if (isNaN(time)) {
+            const parts = dateStr.split("-");
+            if (parts.length === 3) {
+                time = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+            }
+        }
+        return isNaN(time) ? 0 : time;
+    };
+
+    // Sort by Date Published descending (newest first)
+    packages.sort((a, b) => {
+        const dateA = String(a["Date Published"] || a["date_published"] || "");
+        const dateB = String(b["Date Published"] || b["date_published"] || "");
+        return parseSafeDate(dateB) - parseSafeDate(dateA);
     });
 
     return packages;
@@ -92,4 +118,28 @@ export async function updatePackage(id: string, data: Partial<Row>): Promise<voi
 export async function deletePackage(id: string): Promise<void> {
     const docRef = doc(db, PACKAGES_COLLECTION, id);
     await deleteDoc(docRef);
+}
+
+// ─── Audit Logging ────────────────────────────────────────────────────────
+export async function logAccess(email: string, action: string): Promise<void> {
+    await addDoc(collection(db, LOGS_COLLECTION), {
+        email,
+        action,
+        timestamp: new Date().toISOString()
+    });
+}
+
+export async function getLogs(): Promise<AuditLog[]> {
+    const q = query(collection(db, LOGS_COLLECTION), orderBy("timestamp", "desc"));
+    const querySnapshot = await getDocs(q);
+
+    const logs: AuditLog[] = [];
+    querySnapshot.forEach((docSnap) => {
+        logs.push({
+            id: docSnap.id,
+            ...docSnap.data()
+        } as AuditLog);
+    });
+
+    return logs;
 }

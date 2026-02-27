@@ -49,7 +49,8 @@ export function TrendChart({ rows, schema }: TrendChartProps) {
     const { numericColumns, dateColumns } = schema;
 
     const [selectedMetric, setSelectedMetric] = useState(
-        numericColumns.find((c) => c.includes("total") && c.includes("reach")) ||
+        numericColumns.find((c) => c.toLowerCase().includes("combined") && c.toLowerCase().includes("reach")) ||
+        numericColumns.find((c) => c.toLowerCase().includes("reach")) ||
         numericColumns[0] ||
         ""
     );

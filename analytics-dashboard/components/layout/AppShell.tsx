@@ -26,7 +26,7 @@ const navItems = [
     { href: "/packages", label: "Packages", icon: Package },
     { href: "/insights", label: "Insights", icon: Lightbulb },
     { href: "/data-entry", label: "Data Entry", icon: Database },
-    { href: "/settings", label: "Settings", icon: Settings },
+    { href: "/logs", label: "Access Logs", icon: Settings },
 ];
 
 function NavLink({
@@ -63,7 +63,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
     const { logout } = useAuth();
 
     return (
-        <aside className="flex flex-col h-full w-64 px-4 py-6">
+        <aside className="flex flex-col h-full w-64 px-4 py-6 bg-white dark:bg-[#0d0d14]">
             <div className="flex items-center gap-2 px-3 mb-8">
                 {/* Light mode logo (red) */}
                 <Image
