@@ -14,6 +14,7 @@ import type { Row } from "@/lib/types";
 
 // The name of our Firestore collections
 const PACKAGES_COLLECTION = "packages";
+const OFFERS_COLLECTION = "seasonal_offers";
 const LOGS_COLLECTION = "audit_logs";
 
 export interface AuditLog {
@@ -117,6 +118,86 @@ export async function updatePackage(id: string, data: Partial<Row>): Promise<voi
  */
 export async function deletePackage(id: string): Promise<void> {
     const docRef = doc(db, PACKAGES_COLLECTION, id);
+    await deleteDoc(docRef);
+}
+
+// ─── Seasonal Offers ─────────────────────────────────────────────────────
+export interface SeasonalOffer {
+    id?: string;
+    name: string;
+    category: string; // e.g. "Spa", "Buffet", "Weekend Getaway", "Happy Hour"
+    description?: string;
+    validityPeriod?: string;
+    price?: string;
+    originalPrice?: string;
+    datePublished?: string;
+    imageUrl?: string;
+    isBoosted?: boolean;
+    // Social stats
+    fbReach?: number;
+    fbReactions?: number;
+    fbComments?: number;
+    fbShares?: number;
+    fbClicks?: number;
+    igReach?: number;
+    igReactions?: number;
+    igComments?: number;
+    igShares?: number;
+    igSaves?: number;
+    combinedReach?: number;
+    // Boost fields
+    adSpend?: number;
+    impressions?: number;
+    conversations?: number;
+    [key: string]: string | number | boolean | undefined;
+}
+
+export async function getOffers(): Promise<SeasonalOffer[]> {
+    const q = query(collection(db, OFFERS_COLLECTION), orderBy("datePublished", "desc"));
+    try {
+        const querySnapshot = await getDocs(q);
+        const offers: SeasonalOffer[] = [];
+        querySnapshot.forEach((docSnap) => {
+            offers.push({ id: docSnap.id, ...docSnap.data() } as SeasonalOffer);
+        });
+        return offers;
+    } catch {
+        // Fallback without ordering if index not built yet
+        const querySnapshot = await getDocs(collection(db, OFFERS_COLLECTION));
+        const offers: SeasonalOffer[] = [];
+        querySnapshot.forEach((docSnap) => {
+            offers.push({ id: docSnap.id, ...docSnap.data() } as SeasonalOffer);
+        });
+        return offers.sort((a, b) => {
+            const da = a.datePublished || "";
+            const db2 = b.datePublished || "";
+            return da < db2 ? 1 : da > db2 ? -1 : 0;
+        });
+    }
+}
+
+export async function addOffer(data: Omit<SeasonalOffer, "id">): Promise<string> {
+    const cleanedData = Object.fromEntries(
+        Object.entries(data).filter(([_, v]) => v !== undefined && v !== "" && !Number.isNaN(v))
+    );
+    cleanedData.updatedAt = new Date().toISOString();
+    const docRef = await addDoc(collection(db, OFFERS_COLLECTION), cleanedData);
+    return docRef.id;
+}
+
+export async function updateOffer(id: string, data: Partial<SeasonalOffer>): Promise<void> {
+    const docRef = doc(db, OFFERS_COLLECTION, id);
+    const updateData = { ...data };
+    delete updateData.id;
+    const cleanedData = Object.fromEntries(
+        Object.entries(updateData).filter(([_, v]) => v !== undefined && v !== "" && !Number.isNaN(v))
+    );
+    cleanedData.updatedAt = new Date().toISOString();
+    await updateDoc(docRef, cleanedData);
+}
+
+export async function deleteOffer(id: string): Promise<void> {
+    const docRef = doc(db, OFFERS_COLLECTION, id);
     await deleteDoc(docRef);
 }
 

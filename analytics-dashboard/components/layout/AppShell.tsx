@@ -14,6 +14,7 @@ import {
     TrendingUp,
     LogOut,
     Database,
+    Gift,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -24,6 +25,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/packages", label: "Packages", icon: Package },
+    { href: "/offers", label: "Seasonal Offers", icon: Gift },
     { href: "/insights", label: "Insights", icon: Lightbulb },
     { href: "/data-entry", label: "Data Entry", icon: Database },
     { href: "/logs", label: "Access Logs", icon: Settings },
