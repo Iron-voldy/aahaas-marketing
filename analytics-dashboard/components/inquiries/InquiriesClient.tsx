@@ -373,44 +373,45 @@ export function InquiriesClient() {
                             <Card key={item.id + item.type} className="border-slate-200 dark:border-white/10 shadow-sm hover:shadow-md transition-shadow group dark:bg-[#111118] overflow-hidden">
                                 <CardContent className="p-0 flex flex-row h-full">
                                     {/* Thumbnail left side */}
-                                    <div className="w-[100px] sm:w-[140px] flex-shrink-0 bg-slate-100 dark:bg-white/5 relative border-r border-slate-100 dark:border-white/5">
+                                    <div className="w-[90px] sm:w-[130px] lg:w-[140px] flex-shrink-0 bg-slate-100 dark:bg-white/5 relative border-r border-slate-100 dark:border-white/5">
                                         {item.imageUrl ? (
                                             <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover absolute inset-0" />
                                         ) : (
                                             <div className="w-full h-full absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-white/5 dark:to-white/10 p-2 text-center">
                                                 {item.type === "package" ? <Package className="w-6 h-6 sm:w-8 sm:h-8 text-slate-300 dark:text-slate-600 mb-1 sm:mb-2" /> : <Gift className="w-6 h-6 sm:w-8 sm:h-8 text-slate-300 dark:text-slate-600 mb-1 sm:mb-2" />}
+                                                <span className="text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold truncate w-full px-1 hidden sm:block">No Image</span>
                                             </div>
                                         )}
                                     </div>
 
                                     {/* Details right side */}
-                                    <div className="flex-1 p-4 sm:p-5 flex flex-col min-w-0">
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <Badge variant="outline" className={cn("text-[10px] uppercase font-bold border-0 px-2 py-0.5", item.type === "package" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400")}>
-                                                {item.type === "package" ? <Package className="w-3 h-3 mr-1 inline-block" /> : <Gift className="w-3 h-3 mr-1 inline-block" />}
+                                    <div className="flex-1 p-3 sm:p-4 lg:p-5 flex flex-col min-w-0">
+                                        <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+                                            <Badge variant="outline" className={cn("text-[9px] sm:text-[10px] uppercase font-bold border-0 px-1.5 sm:px-2 py-0.5", item.type === "package" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400")}>
+                                                {item.type === "package" ? <Package className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1 inline-block" /> : <Gift className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1 inline-block" />}
                                                 {item.type}
                                             </Badge>
                                         </div>
-                                        <h3 className="font-bold text-slate-900 dark:text-white line-clamp-2 leading-tight mb-3" title={item.name}>
+                                        <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug mb-3 flex-1" title={item.name}>
                                             {item.name}
                                         </h3>
 
                                         {/* Stats block */}
-                                        <div className="grid grid-cols-2 gap-2 mt-auto">
-                                            <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-2.5 sm:p-3 border border-slate-100 dark:border-white/5">
-                                                <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                                    <PhoneCall className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Inquiries
+                                        <div className="grid grid-cols-2 gap-1.5 sm:gap-2 mt-auto">
+                                            <div className="bg-slate-50 dark:bg-white/5 rounded-lg sm:rounded-xl p-2 sm:p-3 border border-slate-100 dark:border-white/5">
+                                                <span className="text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                    <PhoneCall className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Inquiries</span>
                                                 </span>
-                                                <span className="block mt-1 text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-200">{item.inquiries}</span>
+                                                <span className="block mt-0.5 sm:mt-1 text-base sm:text-xl font-bold text-slate-800 dark:text-slate-200 leading-none">{item.inquiries}</span>
                                             </div>
-                                            <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-xl p-2.5 sm:p-3 border border-emerald-100 dark:border-emerald-500/20">
-                                                <span className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
-                                                    <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Bookings
+                                            <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-lg sm:rounded-xl p-2 sm:p-3 border border-emerald-100 dark:border-emerald-500/20">
+                                                <span className="text-[9px] sm:text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
+                                                    <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Bookings</span>
                                                 </span>
-                                                <div className="flex flex-col sm:flex-row sm:items-baseline gap-0 sm:gap-2 mt-1">
-                                                    <span className="text-lg sm:text-xl font-bold text-emerald-700 dark:text-emerald-300">{item.bookings}</span>
+                                                <div className="flex flex-col sm:flex-row sm:items-baseline gap-0 sm:gap-1.5 mt-0.5 sm:mt-1">
+                                                    <span className="text-base sm:text-xl font-bold text-emerald-700 dark:text-emerald-300 leading-none">{item.bookings}</span>
                                                     {item.inquiries > 0 && (
-                                                        <span className="text-[10px] sm:text-[11px] font-bold text-emerald-600/60 dark:text-emerald-400/60">
+                                                        <span className="text-[9px] sm:text-[11px] font-bold text-emerald-600/60 dark:text-emerald-400/60">
                                                             ({Math.round((item.bookings / item.inquiries) * 100)}%)
                                                         </span>
                                                     )}
@@ -420,10 +421,10 @@ export function InquiriesClient() {
 
                                         <Button
                                             variant="outline"
-                                            className="w-full mt-3 h-9 text-xs rounded-xl border-slate-200 dark:border-white/10 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 dark:hover:bg-violet-500/10 dark:hover:text-violet-400 dark:hover:border-violet-500/30 transition-colors"
+                                            className="w-full mt-2 sm:mt-3 h-8 sm:h-9 text-[10px] sm:text-xs rounded-lg sm:rounded-xl border-slate-200 dark:border-white/10 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 dark:hover:bg-violet-500/10 dark:hover:text-violet-400 dark:hover:border-violet-500/30 transition-colors"
                                             onClick={() => setEditingItem(item)}
                                         >
-                                            <Edit2 className="w-3.5 h-3.5 mr-2" />
+                                            <Edit2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1.5 sm:mr-2" />
                                             Update Stats
                                         </Button>
                                     </div>
