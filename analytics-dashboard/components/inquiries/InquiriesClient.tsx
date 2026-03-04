@@ -373,12 +373,12 @@ export function InquiriesClient() {
                             <Card key={item.id + item.type} className="border-slate-200 dark:border-white/10 shadow-sm hover:shadow-md transition-shadow group dark:bg-[#111118] overflow-hidden">
                                 <CardContent className="p-0 flex flex-row h-full">
                                     {/* Thumbnail left side */}
-                                    <div className="w-[120px] sm:w-[140px] flex-shrink-0 bg-slate-100 dark:bg-white/5 relative border-r border-slate-100 dark:border-white/5 hidden xs:block">
+                                    <div className="w-[100px] sm:w-[140px] flex-shrink-0 bg-slate-100 dark:bg-white/5 relative border-r border-slate-100 dark:border-white/5">
                                         {item.imageUrl ? (
                                             <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover absolute inset-0" />
                                         ) : (
                                             <div className="w-full h-full absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-white/5 dark:to-white/10 p-2 text-center">
-                                                {item.type === "package" ? <Package className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" /> : <Gift className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />}
+                                                {item.type === "package" ? <Package className="w-6 h-6 sm:w-8 sm:h-8 text-slate-300 dark:text-slate-600 mb-1 sm:mb-2" /> : <Gift className="w-6 h-6 sm:w-8 sm:h-8 text-slate-300 dark:text-slate-600 mb-1 sm:mb-2" />}
                                             </div>
                                         )}
                                     </div>
