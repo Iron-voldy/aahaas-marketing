@@ -3,8 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import {
     Gift, Plus, Search, X, Loader2, LayoutGrid, List,
-    Image as ImageIcon, Upload, Trash2, Edit2, Tag,
-    Switch as SwitchIcon
+    Image as ImageIcon, Upload, Trash2, Edit2, Tag
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
