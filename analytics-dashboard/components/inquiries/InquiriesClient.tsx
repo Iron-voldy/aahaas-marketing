@@ -28,6 +28,7 @@ type CombinedItem = {
     inquiriesWeb: number;
     inquiriesOther: number;
     bookings: number;
+    imageUrl?: string;
     source: Row | SeasonalOffer;
 };
 
@@ -211,6 +212,7 @@ export function InquiriesClient() {
 
             pkgs.forEach(p => {
                 const name = (p["Package"] || p["Destination"] || "Unnamed Package") as string;
+                const imageUrl = (p["imageUrl"] || p["image_url"] || p["thumbnail"] || p["image"] || p["Image"]) as string | undefined;
                 combined.push({
                     id: p.id!,
                     type: "package",
@@ -224,11 +226,13 @@ export function InquiriesClient() {
                     inquiriesWeb: Number(p.inquiriesWeb) || 0,
                     inquiriesOther: Number(p.inquiriesOther) || 0,
                     bookings: Number(p.bookings) || 0,
+                    imageUrl,
                     source: p
                 });
             });
 
             offers.forEach(o => {
+                const imageUrl = o.imageUrl || (o.imageUrls?.[0]);
                 combined.push({
                     id: o.id!,
                     type: "offer",
@@ -242,6 +246,7 @@ export function InquiriesClient() {
                     inquiriesWeb: Number(o.inquiriesWeb) || 0,
                     inquiriesOther: Number(o.inquiriesOther) || 0,
                     bookings: Number(o.bookings) || 0,
+                    imageUrl,
                     source: o
                 });
             });
@@ -365,53 +370,63 @@ export function InquiriesClient() {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                         {filteredItems.map(item => (
-                            <Card key={item.id + item.type} className="border-slate-200 dark:border-white/10 shadow-sm hover:shadow-md transition-shadow group dark:bg-[#111118]">
-                                <CardContent className="p-5 flex flex-col h-full gap-4">
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Badge variant="outline" className={cn("text-[10px] uppercase font-bold border-0 px-2 py-0.5", item.type === "package" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400")}>
-                                                    {item.type === "package" ? <Package className="w-3 h-3 mr-1 inline-block" /> : <Gift className="w-3 h-3 mr-1 inline-block" />}
-                                                    {item.type}
-                                                </Badge>
+                            <Card key={item.id + item.type} className="border-slate-200 dark:border-white/10 shadow-sm hover:shadow-md transition-shadow group dark:bg-[#111118] overflow-hidden">
+                                <CardContent className="p-0 flex flex-row h-full">
+                                    {/* Thumbnail left side */}
+                                    <div className="w-[120px] sm:w-[140px] flex-shrink-0 bg-slate-100 dark:bg-white/5 relative border-r border-slate-100 dark:border-white/5 hidden xs:block">
+                                        {item.imageUrl ? (
+                                            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover absolute inset-0" />
+                                        ) : (
+                                            <div className="w-full h-full absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-white/5 dark:to-white/10 p-2 text-center">
+                                                {item.type === "package" ? <Package className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" /> : <Gift className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />}
                                             </div>
-                                            <h3 className="font-bold text-slate-900 dark:text-white line-clamp-2 leading-tight" title={item.name}>
-                                                {item.name}
-                                            </h3>
-                                        </div>
+                                        )}
                                     </div>
 
-                                    {/* Stats block */}
-                                    <div className="grid grid-cols-2 gap-2 mt-auto">
-                                        <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-3 border border-slate-100 dark:border-white/5">
-                                            <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                                <PhoneCall className="w-3.5 h-3.5" /> Inquiries
-                                            </span>
-                                            <span className="block mt-1 text-xl font-bold text-slate-800 dark:text-slate-200">{item.inquiries}</span>
+                                    {/* Details right side */}
+                                    <div className="flex-1 p-4 sm:p-5 flex flex-col min-w-0">
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <Badge variant="outline" className={cn("text-[10px] uppercase font-bold border-0 px-2 py-0.5", item.type === "package" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400")}>
+                                                {item.type === "package" ? <Package className="w-3 h-3 mr-1 inline-block" /> : <Gift className="w-3 h-3 mr-1 inline-block" />}
+                                                {item.type}
+                                            </Badge>
                                         </div>
-                                        <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-xl p-3 border border-emerald-100 dark:border-emerald-500/20">
-                                            <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
-                                                <CheckCircle2 className="w-3.5 h-3.5" /> Bookings
-                                            </span>
-                                            <div className="flex items-baseline gap-2 mt-1">
-                                                <span className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{item.bookings}</span>
-                                                {item.inquiries > 0 && (
-                                                    <span className="text-[10px] font-bold text-emerald-600/60 dark:text-emerald-400/60">
-                                                        ({Math.round((item.bookings / item.inquiries) * 100)}%)
-                                                    </span>
-                                                )}
+                                        <h3 className="font-bold text-slate-900 dark:text-white line-clamp-2 leading-tight mb-3" title={item.name}>
+                                            {item.name}
+                                        </h3>
+
+                                        {/* Stats block */}
+                                        <div className="grid grid-cols-2 gap-2 mt-auto">
+                                            <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-2.5 sm:p-3 border border-slate-100 dark:border-white/5">
+                                                <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                    <PhoneCall className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Inquiries
+                                                </span>
+                                                <span className="block mt-1 text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-200">{item.inquiries}</span>
+                                            </div>
+                                            <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-xl p-2.5 sm:p-3 border border-emerald-100 dark:border-emerald-500/20">
+                                                <span className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
+                                                    <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Bookings
+                                                </span>
+                                                <div className="flex flex-col sm:flex-row sm:items-baseline gap-0 sm:gap-2 mt-1">
+                                                    <span className="text-lg sm:text-xl font-bold text-emerald-700 dark:text-emerald-300">{item.bookings}</span>
+                                                    {item.inquiries > 0 && (
+                                                        <span className="text-[10px] sm:text-[11px] font-bold text-emerald-600/60 dark:text-emerald-400/60">
+                                                            ({Math.round((item.bookings / item.inquiries) * 100)}%)
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
 
-                                    <Button
-                                        variant="outline"
-                                        className="w-full mt-2 h-9 text-xs rounded-xl border-slate-200 dark:border-white/10 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 dark:hover:bg-violet-500/10 dark:hover:text-violet-400 dark:hover:border-violet-500/30 transition-colors"
-                                        onClick={() => setEditingItem(item)}
-                                    >
-                                        <Edit2 className="w-3.5 h-3.5 mr-2" />
-                                        Update Stats
-                                    </Button>
+                                        <Button
+                                            variant="outline"
+                                            className="w-full mt-3 h-9 text-xs rounded-xl border-slate-200 dark:border-white/10 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 dark:hover:bg-violet-500/10 dark:hover:text-violet-400 dark:hover:border-violet-500/30 transition-colors"
+                                            onClick={() => setEditingItem(item)}
+                                        >
+                                            <Edit2 className="w-3.5 h-3.5 mr-2" />
+                                            Update Stats
+                                        </Button>
+                                    </div>
                                 </CardContent>
                             </Card>
                         ))}
