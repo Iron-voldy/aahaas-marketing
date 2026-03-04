@@ -151,6 +151,14 @@ export interface SeasonalOffer {
     adSpend?: number;
     impressions?: number;
     conversations?: number;
+    // Inquiries and Bookings
+    inquiries?: number;
+    inquiriesFb?: number;
+    inquiriesIg?: number;
+    inquiriesWa?: number;
+    inquiriesWeb?: number;
+    inquiriesOther?: number;
+    bookings?: number;
     [key: string]: string | number | boolean | string[] | undefined;
 }
 
