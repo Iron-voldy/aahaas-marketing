@@ -141,6 +141,14 @@ export function OfferCard({ offer, onViewDetail, onEdit, onDelete }: OfferCardPr
                         </Badge>
                     </div>
                 )}
+
+                {/* Multiple Images Indicator (Group Post) */}
+                {offer.postType === "group" && offer.imageUrls && offer.imageUrls.length > 1 && (
+                    <div className="absolute bottom-2 right-2 z-10 bg-black/60 backdrop-blur-md text-white text-[10px] font-semibold px-2 py-1 rounded-lg flex items-center gap-1 shadow-lg">
+                        <Eye className="w-3 h-3" />
+                        1/{offer.imageUrls.length}
+                    </div>
+                )}
             </div>
 
             {/* ── Card Body ── */}

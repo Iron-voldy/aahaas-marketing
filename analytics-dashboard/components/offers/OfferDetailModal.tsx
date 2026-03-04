@@ -66,25 +66,55 @@ export function OfferDetailModal({ offer, open, onClose }: OfferDetailModalProps
                 className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-[#111118] shadow-2xl border border-slate-200 dark:border-white/10"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Header image / gradient */}
-                <div className={cn("relative h-48 bg-gradient-to-br flex items-end p-6", theme.gradient)}>
-                    {offer.imageUrl ? (
+                {/* Images Container */}
+                <div className={cn("relative bg-gradient-to-br p-6 pt-16 flex flex-col justify-end min-h-[12rem]", theme.gradient, offer.imageUrls && offer.imageUrls.length > 0 ? "" : "pb-6")}>
+                    {/* Background Images Layer */}
+                    {offer.imageUrls && offer.imageUrls.length > 0 ? (
+                        <div className="absolute inset-0 overflow-x-auto overflow-y-hidden flex snap-x snap-mandatory hide-scrollbar">
+                            {offer.imageUrls.map((url, i) => (
+                                <div key={url} className="relative w-full h-full flex-shrink-0 snap-center">
+                                    <Image src={url} alt={`${offer.name} ${i + 1}`} fill className="object-cover" />
+                                </div>
+                            ))}
+                        </div>
+                    ) : offer.imageUrl ? (
                         <Image src={offer.imageUrl} alt={offer.name} fill className="object-cover" />
                     ) : null}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="relative z-10">
-                        <Badge className={cn("text-xs border-0 rounded-full px-3 py-1 font-semibold mb-2", theme.badgeClass)}>
-                            {theme.emoji} {offer.category}
-                        </Badge>
+
+                    {/* Overlay Gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+
+                    {/* Header Info */}
+                    <div className="relative z-10 mt-auto">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Badge className={cn("text-xs border-0 rounded-full px-3 py-1 font-semibold", theme.badgeClass)}>
+                                {theme.emoji} {offer.category}
+                            </Badge>
+                            {offer.postType === "group" && (
+                                <Badge className="text-[10px] bg-white/20 text-white hover:bg-white/30 border-0 rounded-full">
+                                    Group Post
+                                </Badge>
+                            )}
+                        </div>
                         <h2 className="text-2xl font-bold text-white drop-shadow">{offer.name}</h2>
                         {offer.description && (
                             <p className="text-sm text-white/80 mt-1 max-w-md">{offer.description}</p>
                         )}
+                        {/* Pagination indicators if multiple urls */}
+                        {offer.imageUrls && offer.imageUrls.length > 1 && (
+                            <div className="flex gap-1.5 mt-3">
+                                {offer.imageUrls.map((_, i) => (
+                                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-white/50" />
+                                ))}
+                                <span className="text-[10px] text-white/50 ml-1">Scroll to see more</span>
+                            </div>
+                        )}
                     </div>
+
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="absolute top-3 right-3 text-white hover:bg-white/20 rounded-full"
+                        className="absolute top-3 right-3 z-20 text-white hover:bg-white/20 rounded-full"
                         onClick={onClose}
                     >
                         <X className="w-5 h-5" />

@@ -126,12 +126,14 @@ export interface SeasonalOffer {
     id?: string;
     name: string;
     category: string; // e.g. "Spa", "Buffet", "Weekend Getaway", "Happy Hour"
+    postType?: "single" | "group";
     description?: string;
     validityPeriod?: string;
     price?: string;
     originalPrice?: string;
     datePublished?: string;
     imageUrl?: string;
+    imageUrls?: string[];
     isBoosted?: boolean;
     // Social stats
     fbReach?: number;
@@ -149,7 +151,7 @@ export interface SeasonalOffer {
     adSpend?: number;
     impressions?: number;
     conversations?: number;
-    [key: string]: string | number | boolean | undefined;
+    [key: string]: string | number | boolean | string[] | undefined;
 }
 
 export async function getOffers(): Promise<SeasonalOffer[]> {
