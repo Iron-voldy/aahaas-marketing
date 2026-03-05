@@ -10,13 +10,14 @@ function isDateString(value: string): boolean {
     if (/^\d+$/.test(value.trim())) return false;
     // Common date formats
     const patterns = [
-        /\d{1,2}[/-]\w{3,}-?\d{2,4}/,
-        /\w+ \d{1,2}, \d{4}/,
-        /\d{1,2} \w+ \d{4}/,
-        /^\d{4}-\d{2}-\d{2}/,
-        /\d{1,2}-\w{3}-\d{2,4}/i,
+        /\d{1,2}[/-]\w{3,}-?\d{2,4}/, // DD-Month-YYYY
+        /\w+ \d{1,2}, \d{4}/,         // Month DD, YYYY
+        /\d{1,2} \w+ \d{4}/,          // DD Month YYYY
+        /^\d{4}-\d{2}-\d{2}/,         // YYYY-MM-DD
+        /\d{1,2}-\w{3}-\d{2,4}/i,     // DD-MMM-YY
+        /^\d{1,2}[-/]\d{1,2}[-/]\d{2,4}$/, // DD-MM-YYYY or DD/MM/YYYY
     ];
-    return patterns.some((p) => p.test(value));
+    return patterns.some((p) => p.test(value.trim()));
 }
 
 function isNumericColumn(rows: Row[], col: string): boolean {
@@ -107,6 +108,8 @@ export function parseFlexibleDate(value: string): Date | null {
     if (!value) return null;
     // Handle "16 December 2025, 14:30" format
     const cleaned = value.replace(/,.*$/, "").trim();
+
+    // Check if new Date() can parse it (e.g., YYYY-MM-DD or MM/DD/YYYY)
     const d = new Date(cleaned);
     if (!isNaN(d.getTime())) return d;
 
@@ -115,7 +118,19 @@ export function parseFlexibleDate(value: string): Date | null {
     if (shortMatch) {
         const [_, day, mon, yr] = shortMatch;
         const year = yr.length === 2 ? 2000 + parseInt(yr) : parseInt(yr);
-        return new Date(`${mon} ${day} ${year}`);
+        const parsed = new Date(`${mon} ${day} ${year}`);
+        if (!isNaN(parsed.getTime())) return parsed;
+    }
+
+    // Handle "DD-MM-YYYY" or "DD/MM/YYYY" format
+    const partsMatch = cleaned.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
+    if (partsMatch) {
+        const [_, day, month, yr] = partsMatch;
+        const year = yr.length === 2 ? 2000 + parseInt(yr) : parseInt(yr);
+        // JS Date takes YYYY-MM-DD for ISO, or MM/DD/YYYY in string. Let's construct it cleanly.
+        // Assuming month is 1-12
+        const parsed = new Date(year, parseInt(month) - 1, parseInt(day));
+        if (!isNaN(parsed.getTime())) return parsed;
     }
 
     return null;
