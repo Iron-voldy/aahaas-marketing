@@ -273,7 +273,9 @@ export function InquiriesClient() {
     const filteredItems = useMemo(() => {
         const term = search.trim().toLowerCase();
         return items.filter(item => {
-            const matchSearch = !term || item.name.toLowerCase().includes(term) || item.category.toLowerCase().includes(term);
+            const matchSearch = !term ||
+                String(item.name || "").toLowerCase().includes(term) ||
+                String(item.category || "").toLowerCase().includes(term);
             const matchType = filterType === "all" || item.type === filterType;
             return matchSearch && matchType;
         });

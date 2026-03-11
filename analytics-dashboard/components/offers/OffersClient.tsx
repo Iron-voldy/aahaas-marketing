@@ -112,10 +112,13 @@ export function OffersClient() {
         const term = search.trim().toLowerCase();
         return offers.filter(o => {
             const matchesSearch = !term ||
-                o.name?.toLowerCase().includes(term) ||
-                o.category?.toLowerCase().includes(term) ||
-                o.description?.toLowerCase().includes(term);
-            const matchesCategory = activeCategory === "All" || o.category?.toLowerCase() === activeCategory.toLowerCase();
+                String(o.name || "").toLowerCase().includes(term) ||
+                String(o.category || "").toLowerCase().includes(term) ||
+                String(o.description || "").toLowerCase().includes(term);
+
+            const offerCategory = o.category || "Other";
+            const matchesCategory = activeCategory === "All" || offerCategory.toLowerCase() === activeCategory.toLowerCase();
+
             return matchesSearch && matchesCategory;
         });
     }, [offers, search, activeCategory]);
