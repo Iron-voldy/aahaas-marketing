@@ -73,6 +73,13 @@ export function PackageDetailModal({ row, open, onClose }: PackageDetailModalPro
     const startDate = keys.find((k) => (k.startsWith("ads_") && k.includes("start")) || k === "Start Date");
     const endDate = keys.find((k) => (k.startsWith("ads_") && k.includes("end")) || k === "End Date");
 
+    let finalReach = null;
+    if (totalReach && row[totalReach] != null) {
+        finalReach = row[totalReach];
+    } else if (fbReach || igReach) {
+        finalReach = (Number(fbReach ? row[fbReach] : 0) || 0) + (Number(igReach ? row[igReach] : 0) || 0);
+    }
+
     // Bar chart data for engagement comparison
     const engagementData = [
         { metric: "Reactions", fb: Number(fbReact ? row[fbReact] : 0), ig: Number(igReact ? row[igReact] : 0) },
@@ -111,10 +118,10 @@ export function PackageDetailModal({ row, open, onClose }: PackageDetailModalPro
                     {validity && (
                         <p className="text-white/55 text-xs mt-0.5">Valid until: {validity}</p>
                     )}
-                    {totalReach && row[totalReach] !== null && (
+                    {finalReach !== null && (
                         <div className="mt-3 inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-full px-3 py-1.5">
                             <TrendingUp className="w-4 h-4 text-white" />
-                            <span className="text-white font-bold text-sm">{fmt(row[totalReach])} total reach</span>
+                            <span className="text-white font-bold text-sm">{fmt(finalReach)} total reach</span>
                         </div>
                     )}
                 </div>

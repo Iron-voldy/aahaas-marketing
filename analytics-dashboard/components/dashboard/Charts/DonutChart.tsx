@@ -52,10 +52,15 @@ const CustomLegend = ({ payload }: any) => (
 );
 
 export function DonutChart({ rows, schema }: DonutChartProps) {
-    const { numericColumns, categoricalColumns } = schema;
+    const { numericColumns, categoricalColumns, highCardinalityColumns } = schema;
+    const allCategoricals = [...categoricalColumns, ...(highCardinalityColumns || [])].filter(c => c !== "id" && !c.toLowerCase().includes("image"));
 
     const [catCol, setCatCol] = useState(
-        categoricalColumns.find((c) => c.includes("country")) || categoricalColumns[0] || ""
+        allCategoricals.find((c) => c.toLowerCase().includes("package")) ||
+        allCategoricals.find((c) => c.toLowerCase().includes("destination")) ||
+        allCategoricals.find((c) => c.toLowerCase().includes("name")) ||
+        allCategoricals.find((c) => c.toLowerCase().includes("country")) ||
+        allCategoricals[0] || ""
     );
     const [valueCol, setValueCol] = useState(
         numericColumns.find((c) => c.toLowerCase().includes("combined") && c.toLowerCase().includes("reach")) ||
@@ -63,7 +68,7 @@ export function DonutChart({ rows, schema }: DonutChartProps) {
         numericColumns[0] || ""
     );
 
-    if (!categoricalColumns.length || !numericColumns.length) return null;
+    if (!allCategoricals.length || !numericColumns.length) return null;
 
     const data = pieBreakdown(rows, catCol, valueCol);
 
@@ -80,7 +85,7 @@ export function DonutChart({ rows, schema }: DonutChartProps) {
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                {categoricalColumns.map((col) => (
+                                {allCategoricals.map((col) => (
                                     <SelectItem key={col} value={col} className="text-xs">
                                         {col.replace(/_/g, " ")}
                                     </SelectItem>

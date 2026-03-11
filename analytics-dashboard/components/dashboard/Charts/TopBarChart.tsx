@@ -45,10 +45,15 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export function TopBarChart({ rows, schema }: TopBarChartProps) {
-    const { numericColumns, categoricalColumns } = schema;
+    const { numericColumns, categoricalColumns, highCardinalityColumns } = schema;
+    const allCategoricals = [...categoricalColumns, ...(highCardinalityColumns || [])].filter(c => c !== "id" && !c.toLowerCase().includes("image"));
 
     const [groupCol, setGroupCol] = useState(
-        categoricalColumns.find((c) => c.includes("country")) || categoricalColumns[0] || ""
+        allCategoricals.find((c) => c.toLowerCase().includes("package")) ||
+        allCategoricals.find((c) => c.toLowerCase().includes("destination")) ||
+        allCategoricals.find((c) => c.toLowerCase().includes("name")) ||
+        allCategoricals.find((c) => c.toLowerCase().includes("country")) ||
+        allCategoricals[0] || ""
     );
     const [valueCol, setValueCol] = useState(
         numericColumns.find((c) => c.toLowerCase().includes("combined") && c.toLowerCase().includes("reach")) ||
@@ -56,7 +61,7 @@ export function TopBarChart({ rows, schema }: TopBarChartProps) {
         numericColumns[0] || ""
     );
 
-    if (!categoricalColumns.length || !numericColumns.length) {
+    if (!allCategoricals.length || !numericColumns.length) {
         return (
             <Card className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111118]">
                 <CardContent className="p-6 flex items-center justify-center h-64">
@@ -81,7 +86,7 @@ export function TopBarChart({ rows, schema }: TopBarChartProps) {
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                {categoricalColumns.map((col) => (
+                                {allCategoricals.map((col) => (
                                     <SelectItem key={col} value={col} className="text-xs">
                                         {col.replace(/_/g, " ")}
                                     </SelectItem>

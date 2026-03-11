@@ -51,7 +51,8 @@ function getStats(row: Row) {
     const convCol = keys.find(k => k.includes("conversation") || k === "FB + IG Messaging Conversations Started");
     const spendCol = keys.find(k => k.includes("spend") || k === "Amount Spent (USD)");
     return {
-        totalReach: totalReachCol ? row[totalReachCol] : null,
+        totalReach: totalReachCol && row[totalReachCol] != null ? row[totalReachCol] :
+            (fbReachCol || igReachCol) ? ((Number(row[fbReachCol || ""]) || 0) + (Number(row[igReachCol || ""]) || 0)) : null,
         fbReach: fbReachCol ? row[fbReachCol] : null,
         igReach: igReachCol ? row[igReachCol] : null,
         fbReactions: fbReactCol ? row[fbReactCol] : null,
