@@ -104,8 +104,18 @@ export function inferSchema(rows: Row[]): InferredSchema {
     };
 }
 
-export function parseFlexibleDate(value: string): Date | null {
+export function parseFlexibleDate(value: any): Date | null {
     if (!value) return null;
+
+    // Handle Firestore Timestamp or similar objects
+    if (typeof value === "object") {
+        if (typeof value.toDate === "function") return value.toDate();
+        if (value.seconds !== undefined) return new Date(value.seconds * 1000 + (value.nanoseconds || 0) / 1000000);
+        if (value instanceof Date) return value;
+    }
+
+    if (typeof value !== "string") return null;
+
     // Handle "16 December 2025, 14:30" format
     const cleaned = value.replace(/,.*$/, "").trim();
 
@@ -113,7 +123,7 @@ export function parseFlexibleDate(value: string): Date | null {
     const d = new Date(cleaned);
     if (!isNaN(d.getTime())) return d;
 
-    // Handle "21-Jan-26" format
+    // Handle "21-Jan-26" or "21-Jan-2026" format
     const shortMatch = cleaned.match(/^(\d{1,2})-(\w{3})-(\d{2,4})$/i);
     if (shortMatch) {
         const [_, day, mon, yr] = shortMatch;
@@ -123,14 +133,16 @@ export function parseFlexibleDate(value: string): Date | null {
     }
 
     // Handle "DD-MM-YYYY" or "DD/MM/YYYY" format
+    // Note: Ambiguous dates like 03/06/2026 are tricky.
+    // We'll try to guess based on common patterns if new Date() fails.
     const partsMatch = cleaned.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
     if (partsMatch) {
-        const [_, day, month, yr] = partsMatch;
+        const [_, p1, p2, yr] = partsMatch;
         const year = yr.length === 2 ? 2000 + parseInt(yr) : parseInt(yr);
-        // JS Date takes YYYY-MM-DD for ISO, or MM/DD/YYYY in string. Let's construct it cleanly.
-        // Assuming month is 1-12
-        const parsed = new Date(year, parseInt(month) - 1, parseInt(day));
-        if (!isNaN(parsed.getTime())) return parsed;
+        
+        // Try DD/MM/YYYY first
+        const d1 = new Date(year, parseInt(p2) - 1, parseInt(p1));
+        if (!isNaN(d1.getTime())) return d1;
     }
 
     return null;

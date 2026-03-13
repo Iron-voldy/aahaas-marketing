@@ -84,18 +84,12 @@ export function useFilters(rows: Row[], dateColumns: string[]) {
             const from = new Date(filters.dateRange.from + "T00:00:00");
             const to = new Date(filters.dateRange.to + "T23:59:59.999");
 
-            // Specifically target "Date Published" columns if they exist
-            const pubDateCols = dateColumns.filter(c => 
-                c.toLowerCase().includes("published") || 
-                c.toLowerCase() === "date"
-            );
-            const colsToUse = pubDateCols.length > 0 ? pubDateCols : dateColumns;
-
             result = result.filter((row) => {
-                for (const dc of colsToUse) {
+                // Check ALL date columns - if ANY match, the package is "active" in this range
+                for (const dc of dateColumns) {
                     const rawVal = row[dc];
                     if (!rawVal) continue;
-                    const d = parseFlexibleDate(String(rawVal));
+                    const d = parseFlexibleDate(rawVal);
                     if (d && d >= from && d <= to) return true;
                 }
                 return false;

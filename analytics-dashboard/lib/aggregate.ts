@@ -175,9 +175,9 @@ export function detectOutliers(rows: Row[], col: string): OutlierResult[] {
 }
 
 // ─── KPI Computation ─────────────────────────────────────────────────────────
-export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows: Row[] = []): KpiCard[] {
+export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows: Row[] = [], dateRange: { from: string; to: string } | null = null): KpiCard[] {
     const kpis: KpiCard[] = [];
-    const { numericColumns, categoricalColumns } = schema;
+    const { numericColumns, dateColumns, categoricalColumns } = schema;
 
     kpis.push({
         label: "Total Packages",
@@ -185,9 +185,30 @@ export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows
         icon: "package",
     });
 
+    // Count specifically published packages in this range
+    let publishedCount = filteredRows.length;
+    if (dateRange && dateColumns.length > 0) {
+        const from = new Date(dateRange.from + "T00:00:00");
+        const to = new Date(dateRange.to + "T23:59:59.999");
+        const pubDateCols = dateColumns.filter(c => 
+            c.toLowerCase().includes("published") || 
+            c.toLowerCase() === "date"
+        );
+        
+        if (pubDateCols.length > 0) {
+            publishedCount = allRows.filter(row => {
+                for (const col of pubDateCols) {
+                    const d = parseFlexibleDate(row[col]);
+                    if (d && d >= from && d <= to) return true;
+                }
+                return false;
+            }).length;
+        }
+    }
+
     kpis.push({
         label: "Packages Published",
-        value: filteredRows.length.toLocaleString(),
+        value: publishedCount.toLocaleString(),
         icon: "trending-up",
     });
 
