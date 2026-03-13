@@ -80,9 +80,9 @@ export function useFilters(rows: Row[], dateColumns: string[]) {
 
         // Date range filter
         if (filters.dateRange && dateColumns.length > 0) {
-            const from = new Date(filters.dateRange.from);
-            const to = new Date(filters.dateRange.to);
-            to.setHours(23, 59, 59, 999);
+            // Use T00:00:00 to force local time parsing of YYYY-MM-DD strings
+            const from = new Date(filters.dateRange.from + "T00:00:00");
+            const to = new Date(filters.dateRange.to + "T23:59:59.999");
 
             // Specifically target "Date Published" columns if they exist
             const pubDateCols = dateColumns.filter(c => 
