@@ -116,14 +116,28 @@ export function parseFlexibleDate(value: any): Date | null {
 
     if (typeof value !== "string") return null;
 
-    // Handle "16 December 2025, 14:30" format
-    const cleaned = value.replace(/,.*$/, "").trim();
+    // Handle range strings like "27 February to 2nd March 2026"
+    // If it contains "to", we take the PART AFTER "to" as the relevant date for presence
+    if (value.toLowerCase().includes(" to ")) {
+        const parts = value.toLowerCase().split(" to ");
+        return parseFlexibleDate(parts[1].trim());
+    }
 
-    // Check if new Date() can parse it (e.g., YYYY-MM-DD or MM/DD/YYYY)
-    const d = new Date(cleaned);
-    if (!isNaN(d.getTime())) return d;
+    const cleaned = value.replace(/,.*$/, "").trim()
+                         .replace(/(\d+)(st|nd|rd|th)/gi, "$1"); // Handle 22nd, 31st
 
-    // Handle "21-Jan-26" or "21-Jan-2026" format
+    // PRIORITY 1: DD/MM/YYYY or DD-MM-YYYY (Common in India/SL)
+    // We do this BEFORE new Date() to avoid MM/DD ambiguity
+    const partsMatch = cleaned.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
+    if (partsMatch) {
+        const [_, p1, p2, yr] = partsMatch;
+        const year = yr.length === 2 ? 2000 + parseInt(yr) : parseInt(yr);
+        // We assume DD/MM/YYYY
+        const d = new Date(year, parseInt(p2) - 1, parseInt(p1));
+        if (!isNaN(d.getTime())) return d;
+    }
+
+    // PRIORITY 2: Explicit months like "16 December 2025" or "21-Jan-26"
     const shortMatch = cleaned.match(/^(\d{1,2})-(\w{3})-(\d{2,4})$/i);
     if (shortMatch) {
         const [_, day, mon, yr] = shortMatch;
@@ -132,18 +146,9 @@ export function parseFlexibleDate(value: any): Date | null {
         if (!isNaN(parsed.getTime())) return parsed;
     }
 
-    // Handle "DD-MM-YYYY" or "DD/MM/YYYY" format
-    // Note: Ambiguous dates like 03/06/2026 are tricky.
-    // We'll try to guess based on common patterns if new Date() fails.
-    const partsMatch = cleaned.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
-    if (partsMatch) {
-        const [_, p1, p2, yr] = partsMatch;
-        const year = yr.length === 2 ? 2000 + parseInt(yr) : parseInt(yr);
-        
-        // Try DD/MM/YYYY first
-        const d1 = new Date(year, parseInt(p2) - 1, parseInt(p1));
-        if (!isNaN(d1.getTime())) return d1;
-    }
+    // PRIORITY 3: Fallback to native Date (handles "16 December 2025", "April 30th", etc.)
+    const dFallback = new Date(cleaned);
+    if (!isNaN(dFallback.getTime())) return dFallback;
 
     return null;
 }
