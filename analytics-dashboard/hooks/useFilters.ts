@@ -83,8 +83,16 @@ export function useFilters(rows: Row[], dateColumns: string[]) {
             const from = new Date(filters.dateRange.from);
             const to = new Date(filters.dateRange.to);
             to.setHours(23, 59, 59, 999);
+
+            // Specifically target "Date Published" columns if they exist
+            const pubDateCols = dateColumns.filter(c => 
+                c.toLowerCase().includes("published") || 
+                c.toLowerCase() === "date"
+            );
+            const colsToUse = pubDateCols.length > 0 ? pubDateCols : dateColumns;
+
             result = result.filter((row) => {
-                for (const dc of dateColumns) {
+                for (const dc of colsToUse) {
                     const rawVal = row[dc];
                     if (!rawVal) continue;
                     const d = parseFlexibleDate(String(rawVal));

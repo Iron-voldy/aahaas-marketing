@@ -175,15 +175,23 @@ export function detectOutliers(rows: Row[], col: string): OutlierResult[] {
 }
 
 // ─── KPI Computation ─────────────────────────────────────────────────────────
-export function computeKpis(rows: Row[], schema: InferredSchema): KpiCard[] {
+export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows: Row[] = []): KpiCard[] {
     const kpis: KpiCard[] = [];
     const { numericColumns, categoricalColumns } = schema;
 
     kpis.push({
         label: "Total Packages",
-        value: rows.length,
+        value: (allRows.length > 0 ? allRows.length : filteredRows.length).toLocaleString(),
         icon: "package",
     });
+
+    kpis.push({
+        label: "Packages Published",
+        value: filteredRows.length.toLocaleString(),
+        icon: "trending-up",
+    });
+
+    const rows = filteredRows;
 
     // Find reach-related columns (total reach first)
     const reachCol = numericColumns.find((c) => (c.includes("total") && c.includes("reach")) || c === "Combined Reach");

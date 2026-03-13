@@ -42,7 +42,7 @@ export function DashboardClient() {
         return <div className="p-8 flex justify-center"><Loader2 className="animate-spin w-8 h-8 text-indigo-500" /></div>;
     }
 
-    const kpis = computeKpis(filteredRows, schema);
+    const kpis = computeKpis(filteredRows, schema, rows);
     const latestUpdate = getLatestUpdateDate(rows);
 
     return (
