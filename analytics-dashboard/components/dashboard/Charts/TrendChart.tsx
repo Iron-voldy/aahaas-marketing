@@ -27,6 +27,7 @@ const COLORS = ["#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444"];
 interface TrendChartProps {
     rows: Row[];
     schema: InferredSchema;
+    dateRange?: { from: string; to: string } | null;
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -45,7 +46,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     );
 };
 
-export function TrendChart({ rows, schema }: TrendChartProps) {
+export function TrendChart({ rows, schema, dateRange }: TrendChartProps) {
     const { numericColumns, dateColumns } = schema;
 
     const [selectedMetric, setSelectedMetric] = useState(
@@ -65,7 +66,7 @@ export function TrendChart({ rows, schema }: TrendChartProps) {
         );
     }
 
-    const data = timeSeries(rows, dateColumns[0], selectedMetric, "month");
+    const data = timeSeries(rows, dateColumns[0], selectedMetric, "month", dateRange?.from, dateRange?.to);
 
     return (
         <Card className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111118] shadow-sm">

@@ -81,14 +81,14 @@ export function DashboardClient() {
 
             {/* Charts - first row */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <TrendChart rows={filteredRows} schema={schema} />
-                <DonutChart rows={filteredRows} schema={schema} />
+                <TrendChart rows={filteredRows} schema={schema} dateRange={filters.dateRange} />
+                <DonutChart rows={filteredRows} schema={schema} dateRange={filters.dateRange} />
             </div>
 
             {/* Charts - second row */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <TopBarChart rows={filteredRows} schema={schema} />
-                <CompareChart rows={filteredRows} schema={schema} />
+                <TopBarChart rows={filteredRows} schema={schema} dateRange={filters.dateRange} />
+                <CompareChart rows={filteredRows} schema={schema} dateRange={filters.dateRange} />
             </div>
         </div>
     );

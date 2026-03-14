@@ -30,6 +30,7 @@ const COLORS = [
 interface TopBarChartProps {
     rows: Row[];
     schema: InferredSchema;
+    dateRange?: { from: string; to: string } | null;
 }
 
 const CustomTooltip = ({ active, payload }: any) => {
@@ -44,7 +45,7 @@ const CustomTooltip = ({ active, payload }: any) => {
     );
 };
 
-export function TopBarChart({ rows, schema }: TopBarChartProps) {
+export function TopBarChart({ rows, schema, dateRange }: TopBarChartProps) {
     const { numericColumns, categoricalColumns, highCardinalityColumns } = schema;
     const allCategoricals = [...categoricalColumns, ...(highCardinalityColumns || [])].filter(c => c !== "id" && !c.toLowerCase().includes("image"));
 
@@ -71,7 +72,7 @@ export function TopBarChart({ rows, schema }: TopBarChartProps) {
         );
     }
 
-    const data = topN(rows, groupCol, valueCol, 10);
+    const data = topN(rows, groupCol, valueCol, 10, dateRange?.from, dateRange?.to);
 
     return (
         <Card className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111118] shadow-sm">

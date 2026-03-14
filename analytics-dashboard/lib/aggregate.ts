@@ -21,20 +21,52 @@ export function groupBy(rows: Row[], column: string): Map<string, Row[]> {
     return map;
 }
 
+// ─── Get delta for a numeric column over a date range ──────────────────────
+export function getDeltaForRange(row: Row, col: string, from?: string, to?: string): number {
+    const history = row.history as Record<string, Record<string, string | number>> | undefined;
+    
+    // If no history or column is not numeric, return the current value if within range
+    // NOTE: This fallback logic is important for backward compatibility
+    const currentVal = typeof row[col] === "number" ? (row[col] as number) : 0;
+    if (!history || !from || !to) return currentVal;
+
+    const dates = Object.keys(history).sort();
+    if (dates.length === 0) return currentVal;
+
+    // Find the value at the end of the range (or the latest before/on 'to')
+    let endValue = 0;
+    const endEntries = dates.filter(d => d <= to);
+    if (endEntries.length > 0) {
+        const latestDateInRange = endEntries[endEntries.length - 1];
+        endValue = Number(history[latestDateInRange][col]) || 0;
+    } else {
+        // If range is entirely before any history, result is 0
+        return 0;
+    }
+
+    // Find the value just before the start of the range
+    let startValue = 0;
+    const startEntries = dates.filter(d => d < from);
+    if (startEntries.length > 0) {
+        const latestDateBeforeRange = startEntries[startEntries.length - 1];
+        startValue = Number(history[latestDateBeforeRange][col]) || 0;
+    }
+
+    return endValue - startValue;
+}
+
 // ─── Sum a numeric column over an array of rows ───────────────────────────
-export function sumColumn(rows: Row[], col: string): number {
+export function sumColumn(rows: Row[], col: string, from?: string, to?: string): number {
     return rows.reduce((acc, r) => {
-        const v = r[col];
-        return acc + (typeof v === "number" && isFinite(v) ? v : 0);
+        return acc + getDeltaForRange(r, col, from, to);
     }, 0);
 }
 
-export function avgColumn(rows: Row[], col: string): number {
-    const vals = rows
-        .map((r) => r[col])
-        .filter((v) => typeof v === "number" && isFinite(v as number)) as number[];
-    if (!vals.length) return 0;
-    return vals.reduce((a, b) => a + b, 0) / vals.length;
+export function avgColumn(rows: Row[], col: string, from?: string, to?: string): number {
+    const deltas = rows
+        .map((r) => getDeltaForRange(r, col, from, to));
+    if (!deltas.length) return 0;
+    return deltas.reduce((a, b) => a + b, 0) / deltas.length;
 }
 
 // ─── Time Series ─────────────────────────────────────────────────────────────
@@ -56,20 +88,43 @@ export function timeSeries(
     rows: Row[],
     dateCol: string,
     valueCol: string,
-    granularity: Granularity = "month"
+    granularity: Granularity = "month",
+    from?: string,
+    to?: string
 ): TimeSeriesPoint[] {
     const buckets = new Map<string, number>();
+
     for (const row of rows) {
-        const rawDate = row[dateCol];
-        if (!rawDate) continue;
-        const parsedDate = parseFlexibleDate(String(rawDate));
-        if (!parsedDate) continue;
-        const bucket = dateBucket(parsedDate, granularity);
-        const val = typeof row[valueCol] === "number" ? (row[valueCol] as number) : 0;
-        buckets.set(bucket, (buckets.get(bucket) ?? 0) + val);
+        const history = row.history as Record<string, Record<string, string | number>> | undefined;
+        
+        if (history) {
+            const dates = Object.keys(history).sort();
+            for (let i = 0; i < dates.length; i++) {
+                const dateStr = dates[i];
+                const parsedDate = new Date(dateStr);
+                const bucket = dateBucket(parsedDate, granularity);
+                
+                const currentVal = Number(history[dateStr][valueCol]) || 0;
+                const prevVal = i > 0 ? (Number(history[dates[i - 1]][valueCol]) || 0) : 0;
+                const delta = currentVal - prevVal;
+                
+                buckets.set(bucket, (buckets.get(bucket) ?? 0) + delta);
+            }
+        } else {
+            // Legacy fallback
+            const rawDate = row[dateCol];
+            if (!rawDate) continue;
+            const parsedDate = parseFlexibleDate(String(rawDate));
+            if (!parsedDate) continue;
+            const bucket = dateBucket(parsedDate, granularity);
+            const val = typeof row[valueCol] === "number" ? (row[valueCol] as number) : 0;
+            buckets.set(bucket, (buckets.get(bucket) ?? 0) + val);
+        }
     }
+
     return Array.from(buckets.entries())
         .sort(([a], [b]) => a.localeCompare(b))
+        .filter(([date]) => (!from || date >= from) && (!to || date <= to))
         .map(([date, value]) => ({ date, value }));
 }
 
@@ -79,15 +134,17 @@ export function timeSeriesByCategory(
     dateCol: string,
     valueCol: string,
     categoryCol: string,
-    topN: number = 3,
-    granularity: Granularity = "month"
-): { date: string;[key: string]: string | number }[] {
-    // Find top N categories by total value
+    topNCount: number = 3,
+    granularity: Granularity = "month",
+    from?: string,
+    to?: string
+): { date: string; [key: string]: string | number }[] {
+    // Find top N categories by total value (using existing deltas logic)
     const catMap = groupBy(rows, categoryCol);
     const catTotals = Array.from(catMap.entries())
         .map(([cat, catRows]) => ({ cat, total: sumColumn(catRows, valueCol) }))
         .sort((a, b) => b.total - a.total)
-        .slice(0, topN)
+        .slice(0, topNCount)
         .map((x) => x.cat);
 
     const buckets = new Map<string, Record<string, number>>();
@@ -95,19 +152,42 @@ export function timeSeriesByCategory(
     for (const row of rows) {
         const cat = String(row[categoryCol] ?? "Unknown");
         if (!catTotals.includes(cat)) continue;
-        const rawDate = row[dateCol];
-        if (!rawDate) continue;
-        const parsedDate = parseFlexibleDate(String(rawDate));
-        if (!parsedDate) continue;
-        const bucket = dateBucket(parsedDate, granularity);
-        if (!buckets.has(bucket)) buckets.set(bucket, {});
-        const b = buckets.get(bucket)!;
-        const val = typeof row[valueCol] === "number" ? (row[valueCol] as number) : 0;
-        b[cat] = (b[cat] ?? 0) + val;
+
+        const history = row.history as Record<string, Record<string, string | number>> | undefined;
+        
+        if (history) {
+            const dates = Object.keys(history).sort();
+            for (let i = 0; i < dates.length; i++) {
+                const dateStr = dates[i];
+                const parsedDate = new Date(dateStr);
+                const bucket = dateBucket(parsedDate, granularity);
+                
+                if (!buckets.has(bucket)) buckets.set(bucket, {});
+                const b = buckets.get(bucket)!;
+
+                const currentVal = Number(history[dateStr][valueCol]) || 0;
+                const prevVal = i > 0 ? (Number(history[dates[i - 1]][valueCol]) || 0) : 0;
+                const delta = currentVal - prevVal;
+
+                b[cat] = (b[cat] ?? 0) + delta;
+            }
+        } else {
+            // Legacy fallback
+            const rawDate = row[dateCol];
+            if (!rawDate) continue;
+            const parsedDate = parseFlexibleDate(String(rawDate));
+            if (!parsedDate) continue;
+            const bucket = dateBucket(parsedDate, granularity);
+            if (!buckets.has(bucket)) buckets.set(bucket, {});
+            const b = buckets.get(bucket)!;
+            const val = typeof row[valueCol] === "number" ? (row[valueCol] as number) : 0;
+            b[cat] = (b[cat] ?? 0) + val;
+        }
     }
 
     return Array.from(buckets.entries())
         .sort(([a], [b]) => a.localeCompare(b))
+        .filter(([date]) => (!from || date >= from) && (!to || date <= to))
         .map(([date, vals]) => ({ date, ...vals }));
 }
 
@@ -116,13 +196,15 @@ export function topN(
     rows: Row[],
     groupCol: string,
     valueCol: string,
-    n: number = 10
+    n: number = 10,
+    from?: string,
+    to?: string
 ): BarDataPoint[] {
     const grouped = groupBy(rows, groupCol);
     return Array.from(grouped.entries())
         .map(([category, catRows]) => ({
             category,
-            value: sumColumn(catRows, valueCol),
+            value: sumColumn(catRows, valueCol, from, to),
         }))
         .sort((a, b) => b.value - a.value)
         .slice(0, n);
@@ -132,9 +214,11 @@ export function topN(
 export function pieBreakdown(
     rows: Row[],
     categoryCol: string,
-    valueCol: string
+    valueCol: string,
+    from?: string,
+    to?: string
 ): PieDataPoint[] {
-    const data = topN(rows, categoryCol, valueCol, 10);
+    const data = topN(rows, categoryCol, valueCol, 10, from, to);
     const total = data.reduce((s, d) => s + d.value, 0);
     return data.map((d) => ({
         name: d.category,
@@ -225,12 +309,13 @@ export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows
     if (reachCol) {
         kpis.push({
             label: "Total Combined Reach",
-            value: sumColumn(rows, reachCol).toLocaleString(),
+            value: sumColumn(rows, reachCol, dateRange?.from, dateRange?.to).toLocaleString(),
             icon: "trending-up",
             prefix: "",
         });
     } else if (fbReachCol && igReachCol) {
-        const totalReach = sumColumn(rows, fbReachCol) + sumColumn(rows, igReachCol);
+        const totalReach = sumColumn(rows, fbReachCol, dateRange?.from, dateRange?.to) + 
+                          sumColumn(rows, igReachCol, dateRange?.from, dateRange?.to);
         kpis.push({
             label: "Total Combined Reach",
             value: totalReach.toLocaleString(),
@@ -241,7 +326,7 @@ export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows
     if (fbReachCol) {
         kpis.push({
             label: "Facebook Reach",
-            value: sumColumn(rows, fbReachCol).toLocaleString(),
+            value: sumColumn(rows, fbReachCol, dateRange?.from, dateRange?.to).toLocaleString(),
             icon: "facebook",
         });
     }
@@ -249,7 +334,7 @@ export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows
     if (igReachCol) {
         kpis.push({
             label: "Instagram Reach",
-            value: sumColumn(rows, igReachCol).toLocaleString(),
+            value: sumColumn(rows, igReachCol, dateRange?.from, dateRange?.to).toLocaleString(),
             icon: "instagram",
         });
     }
@@ -257,7 +342,7 @@ export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows
     if (spendCol) {
         kpis.push({
             label: "Total Ad Spend",
-            value: sumColumn(rows, spendCol).toFixed(2),
+            value: sumColumn(rows, spendCol, dateRange?.from, dateRange?.to).toFixed(2),
             prefix: "$",
             icon: "dollar-sign",
         });
@@ -266,7 +351,7 @@ export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows
     if (convCol) {
         kpis.push({
             label: "Ad Conversations",
-            value: sumColumn(rows, convCol).toLocaleString(),
+            value: sumColumn(rows, convCol, dateRange?.from, dateRange?.to).toLocaleString(),
             icon: "message-circle",
         });
     }
@@ -278,7 +363,7 @@ export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows
         let topCountry = "";
         let topVal = 0;
         grouped.forEach((groupRows, country) => {
-            const val = sumColumn(groupRows, reachCol);
+            const val = sumColumn(groupRows, reachCol, dateRange?.from, dateRange?.to);
             if (val > topVal) {
                 topVal = val;
                 topCountry = country;
@@ -300,7 +385,7 @@ export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows
         if (paidRows.length > 0) {
             kpis.push({
                 label: "Avg CPR",
-                value: avgColumn(paidRows, cprCol).toFixed(2),
+                value: avgColumn(paidRows, cprCol, dateRange?.from, dateRange?.to).toFixed(2),
                 prefix: "$",
                 icon: "target",
             });

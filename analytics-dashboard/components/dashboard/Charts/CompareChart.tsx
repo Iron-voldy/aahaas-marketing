@@ -27,6 +27,7 @@ const COLORS = ["#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444"];
 interface CompareChartProps {
     rows: Row[];
     schema: InferredSchema;
+    dateRange?: { from: string; to: string } | null;
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -45,7 +46,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     );
 };
 
-export function CompareChart({ rows, schema }: CompareChartProps) {
+export function CompareChart({ rows, schema, dateRange }: CompareChartProps) {
     const { numericColumns, categoricalColumns, dateColumns, highCardinalityColumns } = schema;
     const allCategoricals = [...categoricalColumns, ...(highCardinalityColumns || [])].filter(c => c !== "id" && !c.toLowerCase().includes("image"));
 
@@ -72,7 +73,7 @@ export function CompareChart({ rows, schema }: CompareChartProps) {
         );
     }
 
-    const data = timeSeriesByCategory(rows, dateColumns[0], valueCol, catCol, 4, "month");
+    const data = timeSeriesByCategory(rows, dateColumns[0], valueCol, catCol, 4, "month", dateRange?.from, dateRange?.to);
     const categories = data.length > 0
         ? Object.keys(data[0]).filter((k) => k !== "date")
         : [];

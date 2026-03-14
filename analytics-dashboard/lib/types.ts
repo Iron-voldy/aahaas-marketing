@@ -1,6 +1,7 @@
 export interface Row {
   id?: string;
-  [key: string]: string | number | null | undefined;
+  history?: Record<string, Record<string, string | number>>; // date (YYYY-MM-DD) -> metrics
+  [key: string]: string | number | null | undefined | Record<string, Record<string, string | number>>;
 }
 
 export interface InferredSchema {

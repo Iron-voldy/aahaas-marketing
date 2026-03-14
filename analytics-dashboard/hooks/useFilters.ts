@@ -85,7 +85,15 @@ export function useFilters(rows: Row[], dateColumns: string[]) {
             const to = new Date(filters.dateRange.to + "T23:59:59.999");
 
             result = result.filter((row) => {
-                // Check ALL date columns - if ANY match, the package is "active" in this range
+                // Check history for specific daily activity first
+                const history = row.history as Record<string, any> | undefined;
+                if (history && filters.dateRange) {
+                    for (const dateStr of Object.keys(history)) {
+                        if (dateStr >= filters.dateRange.from && dateStr <= filters.dateRange.to) return true;
+                    }
+                }
+
+                // Fallback: Check ALL date columns - if ANY match, the package is "active" in this range
                 for (const dc of dateColumns) {
                     const rawVal = row[dc];
                     if (!rawVal) continue;

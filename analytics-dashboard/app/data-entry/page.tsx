@@ -65,6 +65,7 @@ export default function DataEntryPage() {
     const [isBoosted, setIsBoosted] = useState(false);
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [entryDate, setEntryDate] = useState<string>(new Date().toISOString().split("T")[0]);
 
     // Auto-calculate combined metrics whenever FB or IG inputs change
     useEffect(() => {
@@ -148,6 +149,7 @@ export default function DataEntryPage() {
         setFormData(cleanedRest);
         setIsBoosted(!!isBoosted);
         setEditingId(id || null);
+        setEntryDate(new Date().toISOString().split("T")[0]); // Default to today even when editing
         setImageFile(null); // Keep existing image unless they pick a new one
         setShowForm(true);
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -194,9 +196,9 @@ export default function DataEntryPage() {
             });
 
             if (editingId) {
-                await updatePackage(editingId, packageToSave);
+                await updatePackage(editingId, packageToSave, entryDate);
             } else {
-                await addPackage(packageToSave as Row);
+                await addPackage(packageToSave as Row, entryDate);
             }
 
             // Reset and reload
@@ -323,7 +325,25 @@ export default function DataEntryPage() {
                         <form onSubmit={handleSubmit} className="space-y-8">
 
                             {/* General Fields */}
-                            {renderFields(GENERAL_FIELDS, "General Information")}
+                            <div className="space-y-4">
+                                <h3 className="font-semibold text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-white/10 pb-2">Record Information</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="space-y-1.5 p-2 rounded-lg bg-indigo-50/50 dark:bg-indigo-500/5 transition-colors border border-indigo-100 dark:border-indigo-500/10">
+                                        <label className="text-xs font-bold text-indigo-700 dark:text-indigo-400">
+                                            STATS FOR DATE
+                                        </label>
+                                        <Input
+                                            type="date"
+                                            value={entryDate}
+                                            onChange={(e) => setEntryDate(e.target.value)}
+                                            className="h-9 text-sm bg-white dark:bg-black/40 border-indigo-200 dark:border-indigo-500/20"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {renderFields(GENERAL_FIELDS, "Package Details")}
 
                             {/* Image Upload */}
                             <div className="space-y-4">
@@ -447,7 +467,7 @@ export default function DataEntryPage() {
                                 <CardContent className="p-4 flex flex-col gap-2 flex-grow">
                                     <div className="flex justify-between items-start">
                                         <span className="font-bold text-slate-900 dark:text-white line-clamp-2">
-                                            {pkg["Package"]}
+                                            {pkg["Package"] as any}
                                         </span>
                                         <div className="flex bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 -mr-2 -mt-2">
                                             <Button
@@ -471,9 +491,9 @@ export default function DataEntryPage() {
                                         </div>
                                     </div>
                                     <div className="text-xs text-slate-500 flex flex-col gap-1 mt-auto pt-2">
-                                        <span>Published: {pkg["Date Published"] || "N/A"}</span>
+                                        <span>Published: {pkg["Date Published"] as any || "N/A"}</span>
                                         {pkg.isBoosted && <Badge className="w-fit text-[10px] px-1.5 py-0 h-4 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">Boosted</Badge>}
-                                        <span>Ad Spend: ${pkg["Amount Spent (USD)"] || "0"}</span>
+                                        <span>Ad Spend: ${pkg["Amount Spent (USD)"] as any || "0"}</span>
                                     </div>
                                 </CardContent>
                             </Card>

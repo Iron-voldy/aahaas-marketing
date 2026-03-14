@@ -25,6 +25,7 @@ const COLORS = ["#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#6366f1"
 interface DonutChartProps {
     rows: Row[];
     schema: InferredSchema;
+    dateRange?: { from: string; to: string } | null;
 }
 
 const CustomTooltip = ({ active, payload }: any) => {
@@ -51,7 +52,7 @@ const CustomLegend = ({ payload }: any) => (
     </div>
 );
 
-export function DonutChart({ rows, schema }: DonutChartProps) {
+export function DonutChart({ rows, schema, dateRange }: DonutChartProps) {
     const { numericColumns, categoricalColumns, highCardinalityColumns } = schema;
     const allCategoricals = [...categoricalColumns, ...(highCardinalityColumns || [])].filter(c => c !== "id" && !c.toLowerCase().includes("image"));
 
@@ -70,7 +71,7 @@ export function DonutChart({ rows, schema }: DonutChartProps) {
 
     if (!allCategoricals.length || !numericColumns.length) return null;
 
-    const data = pieBreakdown(rows, catCol, valueCol);
+    const data = pieBreakdown(rows, catCol, valueCol, dateRange?.from, dateRange?.to);
 
     return (
         <Card className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111118] shadow-sm">

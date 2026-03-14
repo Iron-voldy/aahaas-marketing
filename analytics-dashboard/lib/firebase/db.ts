@@ -84,12 +84,24 @@ export async function getPackage(id: string): Promise<Row | null> {
 /**
  * Add a new package to Firestore
  */
-export async function addPackage(data: Omit<Row, "id">): Promise<string> {
+export async function addPackage(data: Omit<Row, "id">, entryDate?: string): Promise<string> {
     // Clean data (e.g., remove undefined values that Firestore rejects)
     const cleanedData = Object.fromEntries(
         Object.entries(data).filter(([_, v]) => v !== undefined)
     );
     cleanedData.updatedAt = new Date().toISOString();
+
+    // If entryDate is provided, initialize history
+    if (entryDate) {
+        const historyDate = entryDate.split("T")[0]; // Ensure YYYY-MM-DD
+        const metrics: Record<string, string | number> = {};
+        Object.entries(cleanedData).forEach(([k, v]) => {
+            if (typeof v === "number" || (typeof v === "string" && !k.includes("Date") && k !== "Package" && k !== "Destination")) {
+                metrics[k] = v as string | number;
+            }
+        });
+        cleanedData.history = { [historyDate]: metrics };
+    }
 
     const docRef = await addDoc(collection(db, PACKAGES_COLLECTION), cleanedData);
     return docRef.id;
@@ -98,8 +110,17 @@ export async function addPackage(data: Omit<Row, "id">): Promise<string> {
 /**
  * Update an existing package
  */
-export async function updatePackage(id: string, data: Partial<Row>): Promise<void> {
+export async function updatePackage(id: string, data: Partial<Row>, entryDate?: string): Promise<void> {
     const docRef = doc(db, PACKAGES_COLLECTION, id);
+
+    // Get current document to merge history
+    let existingHistory: Record<string, any> = {};
+    if (entryDate) {
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+            existingHistory = snap.data().history || {};
+        }
+    }
 
     // Remove the 'id' from the update payload if it exists
     const updateData = { ...data };
@@ -109,6 +130,30 @@ export async function updatePackage(id: string, data: Partial<Row>): Promise<voi
         Object.entries(updateData).filter(([_, v]) => v !== undefined)
     );
     cleanedData.updatedAt = new Date().toISOString();
+
+    // Update history for the specific entry date
+    if (entryDate) {
+        const historyDate = entryDate.split("T")[0];
+        const metrics: Record<string, string | number> = {};
+        
+        // Use either provided data (for updates) or existing fields
+        // Since updatePackage might only receive partial data, we should be careful.
+        // For a true "daily snapshot", we want the current state of numeric metrics.
+        Object.entries(cleanedData).forEach(([k, v]) => {
+            if (typeof v === "number") {
+                metrics[k] = v;
+            }
+        });
+
+        // Merge with existing history
+        cleanedData.history = {
+            ...existingHistory,
+            [historyDate]: {
+                ...(existingHistory[historyDate] || {}),
+                ...metrics
+            }
+        };
+    }
 
     await updateDoc(docRef, cleanedData);
 }
