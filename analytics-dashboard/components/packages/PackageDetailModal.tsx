@@ -145,7 +145,7 @@ export function PackageDetailModal({ row, open, onClose }: PackageDetailModalPro
                                 ["Link Clicks", linkClicks ? row[linkClicks] : null],
                             ].map(([label, val]) => (
                                 <div key={String(label)} className="flex justify-between py-1 border-b border-[#1877F2]/10 last:border-0">
-                                    <span className="text-xs text-slate-500 dark:text-slate-400">{label}</span>
+                                    <span className="text-xs text-slate-500 dark:text-slate-400">{label as string}</span>
                                     <span className="text-xs font-semibold text-slate-800 dark:text-white">{fmt(val)}</span>
                                 </div>
                             ))}
@@ -165,7 +165,7 @@ export function PackageDetailModal({ row, open, onClose }: PackageDetailModalPro
                                 ["Saves", igSave ? row[igSave] : null],
                             ].map(([label, val]) => (
                                 <div key={String(label)} className="flex justify-between py-1 border-b border-pink-500/10 last:border-0">
-                                    <span className="text-xs text-slate-500 dark:text-slate-400">{label}</span>
+                                    <span className="text-xs text-slate-500 dark:text-slate-400">{label as string}</span>
                                     <span className="text-xs font-semibold text-slate-800 dark:text-white">{fmt(val)}</span>
                                 </div>
                             ))}
@@ -217,7 +217,7 @@ export function PackageDetailModal({ row, open, onClose }: PackageDetailModalPro
                                     ["Paid Reach", adsReach ? row[adsReach] : null],
                                 ].map(([label, val]) => val !== null && val !== undefined && (
                                     <div key={String(label)} className="flex justify-between py-1 border-b border-amber-100 dark:border-amber-500/10 last:border-0">
-                                        <span className="text-xs text-amber-600 dark:text-amber-400/70">{label}</span>
+                                        <span className="text-xs text-amber-600 dark:text-amber-400/70">{label as string}</span>
                                         <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">{fmt(val)}</span>
                                     </div>
                                 ))}
