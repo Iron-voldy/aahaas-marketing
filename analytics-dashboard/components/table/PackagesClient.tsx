@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { LayoutGrid, Table2, GitCompare, X, Search, ImagePlus, Clock } from "lucide-react";
+import { LayoutGrid, Table2, GitCompare, X, ImagePlus, Clock, Search } from "lucide-react";
+import { Filters } from "@/components/dashboard/Filters";
+import { useFilters } from "@/hooks/useFilters";
+import { sumColumn, getLatestUpdateDate } from "@/lib/aggregate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +19,6 @@ import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import { getPackages } from "@/lib/firebase/db";
 import { inferSchema } from "@/lib/inferSchema";
-import { getLatestUpdateDate } from "@/lib/aggregate";
 
 type ViewMode = "cards" | "table";
 
@@ -43,23 +45,19 @@ export function PackagesClient() {
     }, []);
 
     const [viewMode, setViewMode] = useState<ViewMode>("cards");
-    const [search, setSearch] = useState("");
+    const {
+        filters,
+        filteredRows,
+        setDateRange,
+        setCategoryFilter,
+        setSearch,
+        reset,
+    } = useFilters(rows, schema?.dateColumns || []);
+
     const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
     const [detailRow, setDetailRow] = useState<Row | null>(null);
     const [quickEditRow, setQuickEditRow] = useState<Row | null>(null);
     const [showComparison, setShowComparison] = useState(false);
-
-    // Filter rows preserving original CSV indices (for correct image mapping)
-    const filteredRows = useMemo(() => {
-        const term = search.trim().toLowerCase();
-        return rows
-            .map((row, originalIndex) => ({ row, originalIndex }))
-            .filter(({ row }) =>
-                !term || Object.values(row).some((v) =>
-                    v !== null && typeof v !== "object" && String(v).toLowerCase().includes(term)
-                )
-            );
-    }, [rows, search]);
 
     if (isLoading || !schema) {
         return <div className="p-8 flex justify-center"><Loader2 className="animate-spin w-8 h-8 text-indigo-500" /></div>;
@@ -83,13 +81,17 @@ export function PackagesClient() {
     };
 
     // Compute platform totals
+    // Compute platform totals based on filtered results and date range
     const fbReachCol = schema.numericColumns.find(c => (c.startsWith("fb_") && c.includes("reach")) || c === "FB Reach");
     const igReachCol = schema.numericColumns.find(c => (c.startsWith("ig_") && c.includes("reach")) || c === "IG Reach");
     const totalReachCol = schema.numericColumns.find(c => (c.includes("total") && c.includes("reach")) || c === "Combined Reach");
-    const sum = (col?: string) => col ? rows.reduce((s, r) => s + (typeof r[col] === "number" ? (r[col] as number) : 0), 0) : 0;
-    const fbTotal = sum(fbReachCol);
-    const igTotal = sum(igReachCol);
-    const combinedTotal = sum(totalReachCol) || (fbTotal + igTotal);
+    
+    const from = filters.dateRange?.from;
+    const to = filters.dateRange?.to;
+
+    const fbTotal = fbReachCol ? sumColumn(filteredRows, fbReachCol, from, to) : 0;
+    const igTotal = igReachCol ? sumColumn(filteredRows, igReachCol, from, to) : 0;
+    const combinedTotal = totalReachCol ? sumColumn(filteredRows, totalReachCol, from, to) : (fbTotal + igTotal);
     const latestUpdate = getLatestUpdateDate(rows);
 
     return (
@@ -155,46 +157,40 @@ export function PackagesClient() {
                     </div>
                 </div>
 
-                {/* Platform reach summary pills */}
-                <div className="flex flex-wrap gap-2 mt-3">
-                    <div className="flex items-center gap-2 bg-[#1877F2]/10 dark:bg-[#1877F2]/15 rounded-full px-3 py-1">
-                        <FacebookLogo className="w-4 h-4" />
-                        <span className="text-xs font-semibold text-[#1877F2]">
-                            {fbTotal.toLocaleString()} total reach
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2 bg-pink-500/10 dark:bg-pink-500/15 rounded-full px-3 py-1">
-                        <InstagramLogo className="w-4 h-4" />
-                        <span className="text-xs font-semibold text-pink-500">
-                            {igTotal.toLocaleString()} total reach
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2 bg-violet-500/10 dark:bg-violet-500/15 rounded-full px-3 py-1">
-                        <span className="text-xs font-semibold text-violet-600 dark:text-violet-400">
-                            {combinedTotal.toLocaleString()} combined
-                        </span>
-                    </div>
+                {/* Filters */}
+                <div className="mt-4">
+                    <Filters
+                        rows={rows}
+                        schema={schema}
+                        filters={filters}
+                        onDateRange={setDateRange}
+                        onCategoryFilter={setCategoryFilter}
+                        onSearch={setSearch}
+                        onReset={reset}
+                    />
                 </div>
             </div>
 
             <div className="px-4 lg:px-6 pt-5 space-y-5">
-                {/* Search bar */}
-                <div className="relative max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                    <Input
-                        placeholder="Search packages by country, date..."
-                        className="pl-9 h-9 rounded-xl text-sm bg-white dark:bg-[#111118] border-slate-200 dark:border-white/10"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                    {search && (
-                        <button
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                            onClick={() => setSearch("")}
-                        >
-                            <X className="w-3.5 h-3.5" />
-                        </button>
-                    )}
+                {/* Total Stats Summary */}
+                <div className="flex flex-wrap gap-2">
+                    <div className="flex items-center gap-2 bg-[#1877F2]/10 dark:bg-[#1877F2]/15 rounded-full px-3 py-1">
+                        <FacebookLogo className="w-3.5 h-3.5" />
+                        <span className="text-[11px] font-bold text-[#1877F2]">
+                            {fbTotal.toLocaleString()} FB REACH
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-pink-500/10 dark:bg-pink-500/15 rounded-full px-3 py-1">
+                        <InstagramLogo className="w-3.5 h-3.5" />
+                        <span className="text-[11px] font-bold text-pink-500">
+                            {igTotal.toLocaleString()} IG REACH
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-violet-500/10 dark:bg-violet-500/15 rounded-full px-3 py-1">
+                        <span className="text-[11px] font-bold text-violet-600 dark:text-violet-400 uppercase">
+                            {combinedTotal.toLocaleString()} Combined
+                        </span>
+                    </div>
                 </div>
 
                 {/* Comparison panel (shown when packages selected) */}
@@ -235,18 +231,23 @@ export function PackagesClient() {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
-                                {filteredRows.map(({ row, originalIndex }) => (
-                                    <PackageCard
-                                        key={originalIndex}
-                                        row={row}
-                                        index={originalIndex}
-                                        isSelected={selectedIndices.includes(originalIndex)}
-                                        onToggleSelect={() => toggleSelect(originalIndex)}
-                                        onViewDetail={() => setDetailRow(row)}
-                                        onQuickEdit={() => setQuickEditRow(row)}
-                                        imagePath={(row.imageUrl as string) || getFlyerImage(originalIndex)}
-                                    />
-                                ))}
+                                {filteredRows.map((row) => {
+                                    // Find original index for image mapping
+                                    const originalIndex = rows.indexOf(row);
+                                    return (
+                                        <PackageCard
+                                            key={row.id || originalIndex}
+                                            row={row}
+                                            index={originalIndex}
+                                            isSelected={selectedIndices.includes(originalIndex)}
+                                            dateRange={filters.dateRange}
+                                            onToggleSelect={() => toggleSelect(originalIndex)}
+                                            onViewDetail={() => setDetailRow(row)}
+                                            onQuickEdit={() => setQuickEditRow(row)}
+                                            imagePath={(row.imageUrl as string) || getFlyerImage(originalIndex)}
+                                        />
+                                    );
+                                })}
                             </div>
                         )}
                     </>
@@ -254,7 +255,7 @@ export function PackagesClient() {
 
                 {/* ── Table View ── */}
                 {viewMode === "table" && (
-                    <PackagesTable rows={filteredRows.map(f => f.row)} globalFilter={search} />
+                    <PackagesTable rows={filteredRows} globalFilter={filters.searchTerm} />
                 )}
             </div>
 

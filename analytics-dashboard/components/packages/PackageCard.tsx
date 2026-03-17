@@ -38,8 +38,9 @@ function fmt(v: unknown): string {
     if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
     return n.toLocaleString();
 }
+  import { getDeltaForRange } from "@/lib/aggregate";
 
-function getStats(row: Row) {
+function getStats(row: Row, dateRange?: { from: string; to: string } | null) {
     const keys = Object.keys(row);
     const totalReachCol = keys.find(k => (k.includes("total") && k.includes("reach")) || k === "Combined Reach");
     const fbReachCol = keys.find(k => (k.startsWith("fb_") && k.includes("reach")) || k === "FB Reach");
@@ -50,17 +51,21 @@ function getStats(row: Row) {
     const igSaveCol = keys.find(k => (k.startsWith("ig_") && k.includes("save")) || k === "IG Interactions (Saves)");
     const convCol = keys.find(k => k.includes("conversation") || k === "FB + IG Messaging Conversations Started");
     const spendCol = keys.find(k => k.includes("spend") || k === "Amount Spent (USD)");
+
+    const from = dateRange?.from;
+    const to = dateRange?.to;
+
     return {
-        totalReach: totalReachCol && row[totalReachCol] != null ? row[totalReachCol] :
-            (fbReachCol || igReachCol) ? ((Number(row[fbReachCol || ""]) || 0) + (Number(row[igReachCol || ""]) || 0)) : null,
-        fbReach: fbReachCol ? row[fbReachCol] : null,
-        igReach: igReachCol ? row[igReachCol] : null,
-        fbReactions: fbReactCol ? row[fbReactCol] : null,
-        igReactions: igReactCol ? row[igReactCol] : null,
-        fbClicks: fbClicksCol ? row[fbClicksCol] : null,
-        igSaves: igSaveCol ? row[igSaveCol] : null,
-        conversations: convCol ? row[convCol] : null,
-        adSpend: spendCol ? row[spendCol] : null,
+        totalReach: totalReachCol ? getDeltaForRange(row, totalReachCol, from, to) :
+            (fbReachCol || igReachCol) ? (getDeltaForRange(row, fbReachCol || "", from, to) + getDeltaForRange(row, igReachCol || "", from, to)) : null,
+        fbReach: fbReachCol ? getDeltaForRange(row, fbReachCol, from, to) : null,
+        igReach: igReachCol ? getDeltaForRange(row, igReachCol, from, to) : null,
+        fbReactions: fbReactCol ? getDeltaForRange(row, fbReactCol, from, to) : null,
+        igReactions: igReactCol ? getDeltaForRange(row, igReactCol, from, to) : null,
+        fbClicks: fbClicksCol ? getDeltaForRange(row, fbClicksCol, from, to) : null,
+        igSaves: igSaveCol ? getDeltaForRange(row, igSaveCol, from, to) : null,
+        conversations: convCol ? getDeltaForRange(row, convCol, from, to) : null,
+        adSpend: spendCol ? getDeltaForRange(row, spendCol, from, to) : null,
         isPaid: spendCol ? (row[spendCol] !== null && row[spendCol] !== undefined && row[spendCol] !== "") : false,
     };
 }
@@ -69,6 +74,7 @@ interface PackageCardProps {
     row: Row;
     index: number;
     isSelected: boolean;
+    dateRange?: { from: string; to: string } | null;
     onToggleSelect: () => void;
     onViewDetail: () => void;
     onQuickEdit: () => void;
@@ -79,6 +85,7 @@ export function PackageCard({
     row,
     index,
     isSelected,
+    dateRange,
     onToggleSelect,
     onViewDetail,
     onQuickEdit,
@@ -89,9 +96,10 @@ export function PackageCard({
     const destination = String(row["Destination"] || row["country"] || "Unknown");
     const datePublished = String(row["Date Published"] || row["date_published"] || "");
     const theme = getTheme(destination);
-    const stats = getStats(row);
+    const stats = getStats(row, dateRange);
     const shortDate = datePublished.split(",")[0].trim();
     const showRealImage = !!imagePath && !imgError;
+    const isRange = dateRange && dateRange.from !== dateRange.to;
 
     return (
         <div
@@ -175,7 +183,9 @@ export function PackageCard({
                     <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                             <TrendingUp className="w-3.5 h-3.5 text-violet-500" />
-                            <span className="text-xs text-slate-500 dark:text-slate-400">Combined Reach</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                                {isRange ? "Growth" : "Combined Reach"}
+                            </span>
                         </div>
                         <span className="text-sm font-bold text-slate-900 dark:text-white">
                             {fmt(stats.totalReach)}
