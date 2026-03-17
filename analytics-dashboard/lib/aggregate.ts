@@ -25,14 +25,15 @@ export function groupBy(rows: Row[], column: string): Map<string, Row[]> {
 export function getDeltaForRange(row: Row, col: string, from?: string, to?: string): number {
     const history = row.history as Record<string, Record<string, string | number>> | undefined;
     
-    // If no history or column is not numeric, return the current value if within range
-    // NOTE: This fallback logic is important for backward compatibility
-    const currentVal = typeof row[col] === "number" ? (row[col] as number) : 0;
-    if (!history || !from || !to) return currentVal;
+    // If no history, return the current value only if 'to' is undefined or current date 
+    // or if the row matches the publication date range (handled by caller).
+    // In aggregate context, if we have no history, the "delta" over time is just the final value
+    // because we don't know when the growth happened.
+    if (!history) {
+        return Number(row[col]) || 0;
+    }
 
     const dates = Object.keys(history).sort();
-    if (dates.length === 0) return currentVal;
-
     // Find the value at the end of the range (or the latest before/on 'to')
     let endValue = 0;
     const endEntries = dates.filter(d => d <= to);

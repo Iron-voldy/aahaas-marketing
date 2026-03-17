@@ -85,32 +85,23 @@ export function useFilters(rows: Row[], dateColumns: string[]) {
             const to = new Date(filters.dateRange.to + "T23:59:59.999");
 
             result = result.filter((row) => {
-                // Check history for specific daily activity first
                 const history = row.history as Record<string, any> | undefined;
-                if (history && filters.dateRange) {
-                    for (const dateStr of Object.keys(history)) {
-                        if (dateStr >= filters.dateRange.from && dateStr <= filters.dateRange.to) return true;
-                    }
+                
+                // 1. If history exists, check if any recorded date is before or within the range
+                // This ensures we show packages that were already alive and active.
+                if (history) {
+                    const hDates = Object.keys(history).sort();
+                    if (hDates.length > 0 && hDates[0] <= filters.dateRange!.to) return true;
                 }
 
-                // Fallback: Check ALL date columns
+                // 2. Fallback: Check ALL published date columns
                 for (const dc of dateColumns) {
                     const rawVal = row[dc];
                     if (!rawVal) continue;
                     const d = parseFlexibleDate(rawVal);
                     
-                    // If history exists, we strictly only show if it has activity in range (handled above)
-                    // If NO history exists (legacy), we show if it was published at any point before or coinciding with the range
-                    // This ensures users can still see their legacy totals when filtering.
-                    if (d) {
-                        if (history) {
-                            // Strict match for history rows already handled, but let's be safe
-                            if (d >= from && d <= to) return true;
-                        } else {
-                            // Permissive match for legacy rows: if published at or before the end of the range
-                            if (d <= to) return true;
-                        }
-                    }
+                    // Show if published at or before the end of the range
+                    if (d && d <= to) return true;
                 }
                 return false;
             });
