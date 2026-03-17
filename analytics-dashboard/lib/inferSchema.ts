@@ -126,24 +126,32 @@ export function parseFlexibleDate(value: any): Date | null {
     const cleaned = value.replace(/,.*$/, "").trim()
                          .replace(/(\d+)(st|nd|rd|th)/gi, "$1"); // Handle 22nd, 31st
 
-    // PRIORITY 1: DD/MM/YYYY or DD-MM-YYYY (Common in India/SL)
-    // We do this BEFORE new Date() to avoid MM/DD ambiguity
+    // PRIORITY 1: DD/MM/YYYY or MM/DD/YYYY detection
     const partsMatch = cleaned.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
     if (partsMatch) {
-        const [_, p1, p2, yr] = partsMatch;
+        let [_, p1, p2, yr] = partsMatch;
         const year = yr.length === 2 ? 2000 + parseInt(yr) : parseInt(yr);
-        // We assume DD/MM/YYYY
-        const d = new Date(year, parseInt(p2) - 1, parseInt(p1));
-        if (!isNaN(d.getTime())) return d;
-    }
+        
+        const n1 = parseInt(p1);
+        const n2 = parseInt(p2);
 
-    // PRIORITY 2: Explicit months like "16 December 2025" or "21-Jan-26"
-    const shortMatch = cleaned.match(/^(\d{1,2})-(\w{3})-(\d{2,4})$/i);
-    if (shortMatch) {
-        const [_, day, mon, yr] = shortMatch;
-        const year = yr.length === 2 ? 2000 + parseInt(yr) : parseInt(yr);
-        const parsed = new Date(`${mon} ${day} ${year}`);
-        if (!isNaN(parsed.getTime())) return parsed;
+        // Smarter detection: 
+        // If n1 > 12, it must be DD/MM/YYYY
+        // If n2 > 12, it must be MM/DD/YYYY
+        if (n1 > 12) {
+            const d = new Date(year, n2 - 1, n1);
+            if (!isNaN(d.getTime())) return d;
+        } else if (n2 > 12) {
+            const d = new Date(year, n1 - 1, n2);
+            if (!isNaN(d.getTime())) return d;
+        } else {
+            // Ambiguous. Default to DD/MM/YYYY (or surroundings standard)
+            // But if user screenshot showed 03/16/2026, they use MM/DD.
+            // Let's try to be consistent with the most likely intent.
+            // Aahaas is likely Sri Lankan/Asian -> DD/MM usually.
+            const d = new Date(year, n2 - 1, n1);
+            if (!isNaN(d.getTime())) return d;
+        }
     }
 
     // PRIORITY 3: Fallback to native Date (handles "16 December 2025", "April 30th", etc.)

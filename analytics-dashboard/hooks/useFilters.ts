@@ -93,12 +93,24 @@ export function useFilters(rows: Row[], dateColumns: string[]) {
                     }
                 }
 
-                // Fallback: Check ALL date columns - if ANY match, the package is "active" in this range
+                // Fallback: Check ALL date columns
                 for (const dc of dateColumns) {
                     const rawVal = row[dc];
                     if (!rawVal) continue;
                     const d = parseFlexibleDate(rawVal);
-                    if (d && d >= from && d <= to) return true;
+                    
+                    // If history exists, we strictly only show if it has activity in range (handled above)
+                    // If NO history exists (legacy), we show if it was published at any point before or coinciding with the range
+                    // This ensures users can still see their legacy totals when filtering.
+                    if (d) {
+                        if (history) {
+                            // Strict match for history rows already handled, but let's be safe
+                            if (d >= from && d <= to) return true;
+                        } else {
+                            // Permissive match for legacy rows: if published at or before the end of the range
+                            if (d <= to) return true;
+                        }
+                    }
                 }
                 return false;
             });

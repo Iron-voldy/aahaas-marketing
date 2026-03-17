@@ -101,6 +101,8 @@ export function timeSeries(
             const dates = Object.keys(history).sort();
             for (let i = 0; i < dates.length; i++) {
                 const dateStr = dates[i];
+                if ((from && dateStr < from) || (to && dateStr > to)) continue;
+                
                 const parsedDate = new Date(dateStr);
                 const bucket = dateBucket(parsedDate, granularity);
                 
@@ -114,8 +116,12 @@ export function timeSeries(
             // Legacy fallback
             const rawDate = row[dateCol];
             if (!rawDate) continue;
-            const parsedDate = parseFlexibleDate(String(rawDate));
+            const parsedDate = parseFlexibleDate(rawDate);
             if (!parsedDate) continue;
+
+            const dateStr = parsedDate.toISOString().split("T")[0];
+            if ((from && dateStr < from) || (to && dateStr > to)) continue;
+
             const bucket = dateBucket(parsedDate, granularity);
             const val = typeof row[valueCol] === "number" ? (row[valueCol] as number) : 0;
             buckets.set(bucket, (buckets.get(bucket) ?? 0) + val);
@@ -124,7 +130,6 @@ export function timeSeries(
 
     return Array.from(buckets.entries())
         .sort(([a], [b]) => a.localeCompare(b))
-        .filter(([date]) => (!from || date >= from) && (!to || date <= to))
         .map(([date, value]) => ({ date, value }));
 }
 
@@ -159,6 +164,8 @@ export function timeSeriesByCategory(
             const dates = Object.keys(history).sort();
             for (let i = 0; i < dates.length; i++) {
                 const dateStr = dates[i];
+                if ((from && dateStr < from) || (to && dateStr > to)) continue;
+
                 const parsedDate = new Date(dateStr);
                 const bucket = dateBucket(parsedDate, granularity);
                 
@@ -175,8 +182,12 @@ export function timeSeriesByCategory(
             // Legacy fallback
             const rawDate = row[dateCol];
             if (!rawDate) continue;
-            const parsedDate = parseFlexibleDate(String(rawDate));
+            const parsedDate = parseFlexibleDate(rawDate);
             if (!parsedDate) continue;
+
+            const dateStr = parsedDate.toISOString().split("T")[0];
+            if ((from && dateStr < from) || (to && dateStr > to)) continue;
+
             const bucket = dateBucket(parsedDate, granularity);
             if (!buckets.has(bucket)) buckets.set(bucket, {});
             const b = buckets.get(bucket)!;
@@ -187,7 +198,6 @@ export function timeSeriesByCategory(
 
     return Array.from(buckets.entries())
         .sort(([a], [b]) => a.localeCompare(b))
-        .filter(([date]) => (!from || date >= from) && (!to || date <= to))
         .map(([date, vals]) => ({ date, ...vals }));
 }
 
