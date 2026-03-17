@@ -34,23 +34,27 @@ export function getDeltaForRange(row: Row, col: string, from?: string, to?: stri
     }
 
     const dates = Object.keys(history).sort();
-    // Find the value at the end of the range (or the latest before/on 'to')
-    let endValue = 0;
-    const endEntries = dates.filter(d => d <= to);
-    if (endEntries.length > 0) {
-        const latestDateInRange = endEntries[endEntries.length - 1];
-        endValue = Number(history[latestDateInRange][col]) || 0;
-    } else {
-        // If range is entirely before any history, result is 0
-        return 0;
+    if (dates.length === 0) return Number(row[col]) || 0;
+
+    // Latest value within or before the 'to' date
+    const endEntries = to ? dates.filter(d => d <= to) : dates;
+    if (endEntries.length === 0) return 0;
+    const latestDateInRange = endEntries[endEntries.length - 1];
+    const endValue = Number(history[latestDateInRange][col]) || 0;
+
+    // If single date selected, return the cumulative total as of that day
+    if (from && to && from === to) {
+        return endValue;
     }
 
-    // Find the value just before the start of the range
+    // Otherwise, calculate delta
     let startValue = 0;
-    const startEntries = dates.filter(d => d < from);
-    if (startEntries.length > 0) {
-        const latestDateBeforeRange = startEntries[startEntries.length - 1];
-        startValue = Number(history[latestDateBeforeRange][col]) || 0;
+    if (from) {
+        const startEntries = dates.filter(d => d < from);
+        if (startEntries.length > 0) {
+            const latestDateBeforeRange = startEntries[startEntries.length - 1];
+            startValue = Number(history[latestDateBeforeRange][col]) || 0;
+        }
     }
 
     return endValue - startValue;

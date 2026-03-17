@@ -130,7 +130,7 @@ export function useFilters(rows: Row[], dateColumns: string[]) {
             const term = filters.searchTerm.toLowerCase();
             result = result.filter((row) =>
                 Object.values(row).some((v) =>
-                    String(v ?? "").toLowerCase().includes(term)
+                    v !== null && typeof v !== "object" && String(v).toLowerCase().includes(term)
                 )
             );
         }

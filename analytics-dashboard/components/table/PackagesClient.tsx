@@ -56,7 +56,7 @@ export function PackagesClient() {
             .map((row, originalIndex) => ({ row, originalIndex }))
             .filter(({ row }) =>
                 !term || Object.values(row).some((v) =>
-                    String(v ?? "").toLowerCase().includes(term)
+                    v !== null && typeof v !== "object" && String(v).toLowerCase().includes(term)
                 )
             );
     }, [rows, search]);
