@@ -1,6 +1,6 @@
 "use client";
 
-import { X, TrendingUp, BarChart2, ChevronRight } from "lucide-react";
+import { X, TrendingUp, BarChart2, ChevronRight, ExternalLink } from "lucide-react";
 import {
     ResponsiveContainer,
     RadarChart,
@@ -42,10 +42,12 @@ interface PackageDetailModalProps {
 export function PackageDetailModal({ row, open, onClose }: PackageDetailModalProps) {
     if (!row) return null;
 
-    const packageName = String(row["Package"] || row["package"] || row["country"] || "Unknown");
-    const destination = String(row["Destination"] || row["country"] || "Unknown");
+    const packageName = String(row["Package"] || row["Country"] || row["country"] || row["package"] || "Unknown");
+    const destination = String(row["Destination"] || row["destination"] || row["Country"] || row["country"] || "Unknown");
     const datePublished = String(row["Date Published"] || row["date_published"] || "");
     const validity = String(row["validity_period"] ?? "");
+    const fbPermalink = String(row["fb_permalink"] || row["postUrl"] || "");
+    const igPermalink = String(row["ig_permalink"] || "");
 
     const keys = Object.keys(row);
     const g = (prefix: string, word: string) =>
@@ -118,12 +120,28 @@ export function PackageDetailModal({ row, open, onClose }: PackageDetailModalPro
                     {validity && (
                         <p className="text-white/55 text-xs mt-0.5">Valid until: {validity}</p>
                     )}
-                    {finalReach !== null && (
-                        <div className="mt-3 inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-full px-3 py-1.5">
-                            <TrendingUp className="w-4 h-4 text-white" />
-                            <span className="text-white font-bold text-sm">{fmt(finalReach)} total reach</span>
-                        </div>
-                    )}
+                    <div className="mt-3 flex items-center gap-2 flex-wrap">
+                        {finalReach !== null && (
+                            <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-full px-3 py-1.5">
+                                <TrendingUp className="w-4 h-4 text-white" />
+                                <span className="text-white font-bold text-sm">{fmt(finalReach)} total reach</span>
+                            </div>
+                        )}
+                        {fbPermalink && (
+                            <a href={fbPermalink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-[#1877F2]/80 hover:bg-[#1877F2] backdrop-blur-sm rounded-full px-3 py-1.5 text-white text-xs font-medium transition-colors">
+                                <FacebookLogo className="w-3.5 h-3.5" />
+                                View FB Post
+                                <ExternalLink className="w-3 h-3" />
+                            </a>
+                        )}
+                        {igPermalink && (
+                            <a href={igPermalink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-pink-500/80 hover:bg-pink-500 backdrop-blur-sm rounded-full px-3 py-1.5 text-white text-xs font-medium transition-colors">
+                                <InstagramLogo className="w-3.5 h-3.5" />
+                                View IG Post
+                                <ExternalLink className="w-3 h-3" />
+                            </a>
+                        )}
+                    </div>
                 </div>
 
                 <div className="p-5 space-y-5">

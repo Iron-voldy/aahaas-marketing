@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Save } from "lucide-react";
 import type { Row } from "@/lib/types";
-import { updatePackage } from "@/lib/firebase/db";
+import { updatePackage } from "@/lib/db";
 
 interface QuickEditStatsModalProps {
     row: Row | null;

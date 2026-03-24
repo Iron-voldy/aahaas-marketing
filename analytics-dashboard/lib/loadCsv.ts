@@ -105,17 +105,11 @@ export function parseCsv(text: string): LoadCsvResult {
     const maxCols = Math.max(sectionRow.length, row1.length, row2.length);
     const rawKeys: string[] = [];
     for (let i = 0; i < maxCols; i++) {
-        // Skip the "Last Updated Date and Time" column so we don't treat it as a data property
-        if (i === 1) {
-            rawKeys.push("_ignore_last_updated");
-            continue;
-        }
         rawKeys.push(buildColumnName(sectionRow[i] ?? "", row1[i] ?? "", row2[i] ?? ""));
     }
 
     const seen: Record<string, number> = {};
     const keys = rawKeys.map(k => {
-        if (k === "_ignore_last_updated") return k;
         if (seen[k] !== undefined) { seen[k]++; return `${k}_${seen[k]}`; }
         seen[k] = 0; return k;
     });
@@ -130,7 +124,6 @@ export function parseCsv(text: string): LoadCsvResult {
 
         const row: Row = {};
         keys.forEach((key, idx) => {
-            if (key === "_ignore_last_updated") return;
             row[key] = parseCell(cells[idx] ?? "");
         });
 

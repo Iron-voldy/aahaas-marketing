@@ -91,7 +91,7 @@ export function CompareChart({ rows, schema, dateRange }: CompareChartProps) {
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                {allCategoricals.map((col) => (
+                                {allCategoricals.filter((col) => col !== "").map((col) => (
                                     <SelectItem key={col} value={col} className="text-xs">
                                         {col.replace(/_/g, " ")}
                                     </SelectItem>
@@ -103,7 +103,7 @@ export function CompareChart({ rows, schema, dateRange }: CompareChartProps) {
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                {numericColumns.map((col) => (
+                                {numericColumns.filter((col) => col !== "").map((col) => (
                                     <SelectItem key={col} value={col} className="text-xs">
                                         {col.replace(/_/g, " ")}
                                     </SelectItem>

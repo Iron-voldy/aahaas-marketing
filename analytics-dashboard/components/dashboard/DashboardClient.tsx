@@ -1,18 +1,22 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { KpiCards } from "@/components/dashboard/KpiCards";
 import { Filters } from "@/components/dashboard/Filters";
-import { TrendChart } from "@/components/dashboard/Charts/TrendChart";
-import { TopBarChart } from "@/components/dashboard/Charts/TopBarChart";
-import { DonutChart } from "@/components/dashboard/Charts/DonutChart";
-import { CompareChart } from "@/components/dashboard/Charts/CompareChart";
 import { useFilters } from "@/hooks/useFilters";
 import { computeKpis, getLatestUpdateDate } from "@/lib/aggregate";
-import { getPackages } from "@/lib/firebase/db";
+import { getPackages } from "@/lib/db";
 import { inferSchema } from "@/lib/inferSchema";
 import type { Row, InferredSchema } from "@/lib/types";
 import { useState, useEffect } from "react";
 import { Loader2, Clock } from "lucide-react";
+
+const ChartPlaceholder = () => <div className="h-72 rounded-xl bg-slate-100 dark:bg-white/5 animate-pulse" />;
+
+const TrendChart = dynamic(() => import("@/components/dashboard/Charts/TrendChart").then(m => m.TrendChart), { ssr: false, loading: ChartPlaceholder });
+const TopBarChart = dynamic(() => import("@/components/dashboard/Charts/TopBarChart").then(m => m.TopBarChart), { ssr: false, loading: ChartPlaceholder });
+const DonutChart = dynamic(() => import("@/components/dashboard/Charts/DonutChart").then(m => m.DonutChart), { ssr: false, loading: ChartPlaceholder });
+const CompareChart = dynamic(() => import("@/components/dashboard/Charts/CompareChart").then(m => m.CompareChart), { ssr: false, loading: ChartPlaceholder });
 
 export function DashboardClient() {
     const [rows, setRows] = useState<Row[]>([]);

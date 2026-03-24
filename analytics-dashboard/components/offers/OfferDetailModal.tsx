@@ -1,12 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { X, TrendingUp, Tag, Clock, Calendar, Sparkles, Users, DollarSign } from "lucide-react";
+import { X, TrendingUp, Tag, Clock, Calendar, Sparkles, Users, DollarSign, ExternalLink } from "lucide-react";
 import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { SeasonalOffer } from "@/lib/firebase/db";
+import type { SeasonalOffer } from "@/lib/db";
 
 function fmt(v: unknown): string {
     if (v === null || v === undefined) return "—";
@@ -58,6 +58,7 @@ export function OfferDetailModal({ offer, open, onClose }: OfferDetailModalProps
     const theme = getTheme(offer.category || "");
     const combinedReach = offer.combinedReach ?? ((offer.fbReach ?? 0) + (offer.igReach ?? 0));
     const hasSocialStats = !!(offer.fbReach || offer.igReach);
+    const postUrl = (offer.postUrl as string) || "";
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -140,6 +141,12 @@ export function OfferDetailModal({ offer, open, onClose }: OfferDetailModalProps
                             <div className="flex items-center gap-1.5 text-sm text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-3 py-1.5 rounded-lg font-medium">
                                 🎯 Paid Boost
                             </div>
+                        )}
+                        {postUrl && (
+                            <a href={postUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-violet-600 bg-violet-100 dark:bg-violet-900/30 dark:text-violet-300 px-3 py-1.5 rounded-lg font-medium hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors">
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                View Post
+                            </a>
                         )}
                     </div>
 

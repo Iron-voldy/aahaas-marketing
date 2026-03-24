@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { getPackages, getOffers, updatePackage, updateOffer } from "@/lib/firebase/db";
+import { getPackages, getOffers, updatePackage, updateOffer } from "@/lib/db";
 import type { Row } from "@/lib/types";
-import type { SeasonalOffer } from "@/lib/firebase/db";
+import type { SeasonalOffer } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 

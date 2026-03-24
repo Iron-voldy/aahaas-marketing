@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { Check, Eye, TrendingUp, MapPin, Calendar, Users, AlertCircle, Edit2 } from "lucide-react";
+import { Check, Eye, TrendingUp, MapPin, Calendar, Users, AlertCircle, Edit2, ExternalLink, Trash2 } from "lucide-react";
 import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,8 +43,8 @@ function fmt(v: unknown): string {
 function getStats(row: Row, dateRange?: { from: string; to: string } | null) {
     const keys = Object.keys(row);
     const totalReachCol = keys.find(k => (k.includes("total") && k.includes("reach")) || k === "Combined Reach");
-    const fbReachCol = keys.find(k => (k.startsWith("fb_") && k.includes("reach")) || k === "FB Reach");
-    const igReachCol = keys.find(k => (k.startsWith("ig_") && k.includes("reach")) || k === "IG Reach");
+    const fbReachCol = keys.find(k => (k.startsWith("fb_") && k.includes("reach")) || k === "FB Reach" || k === "Reach");
+    const igReachCol = keys.find(k => (k.startsWith("ig_") && k.includes("reach")) || k === "IG Reach" || k === "Reach_1");
     const fbReactCol = keys.find(k => (k.startsWith("fb_") && k.includes("react")) || k === "FB Interactions (Reactions)");
     const igReactCol = keys.find(k => (k.startsWith("ig_") && k.includes("react")) || k === "IG Interactions (Reactions)");
     const fbClicksCol = keys.find(k => (k.startsWith("fb_") && k.includes("click") && !k.includes("link")) || k === "FB Total Clicks");
@@ -78,6 +78,7 @@ interface PackageCardProps {
     onToggleSelect: () => void;
     onViewDetail: () => void;
     onQuickEdit: () => void;
+    onDelete?: () => void;
     imagePath?: string | null;
 }
 
@@ -89,13 +90,18 @@ export function PackageCard({
     onToggleSelect,
     onViewDetail,
     onQuickEdit,
+    onDelete,
     imagePath,
 }: PackageCardProps) {
     const [imgError, setImgError] = useState(false);
-    const packageName = String(row["Package"] || row["package"] || row["country"] || "Unknown");
-    const destination = String(row["Destination"] || row["country"] || "Unknown");
+    // packageName: prefer human-set "Package" name; fall back to country/destination for CSV rows
+    // (row["package"] = "Picture" is the post type, NOT a package title)
+    const packageName = String(row["Package"] || row["country"] || row["Country"] || "Unknown");
+    const destination = String(row["Destination"] || row["destination"] || row["Country"] || row["country"] || "");
     const datePublished = String(row["Date Published"] || row["date_published"] || "");
-    const theme = getTheme(destination);
+    const postUrl = String(row["postUrl"] || row["fb_permalink"] || row["ig_permalink"] || "");
+    // Use destination for theme; if blank try packageName itself
+    const theme = getTheme(destination || packageName);
     const stats = getStats(row, dateRange);
     const shortDate = datePublished.split(",")[0].trim();
     const showRealImage = !!imagePath && !imgError;
@@ -112,7 +118,14 @@ export function PackageCard({
             )}
         >
             {/* ── Flyer Image Area ── */}
-            <div className="relative w-full aspect-[4/3] overflow-hidden flex-shrink-0">
+            <div
+                className={cn(
+                    "relative w-full aspect-[4/3] overflow-hidden flex-shrink-0 group/img",
+                    postUrl && "cursor-pointer"
+                )}
+                onClick={() => postUrl && window.open(postUrl, "_blank", "noopener,noreferrer")}
+                title={postUrl ? "Click to view post" : undefined}
+            >
                 {showRealImage ? (
                     <Image
                         src={imagePath!}
@@ -142,6 +155,13 @@ export function PackageCard({
                     </div>
                 )}
 
+                {/* Post-link hover overlay */}
+                {postUrl && (
+                    <div className="absolute inset-0 z-20 bg-black/0 group-hover/img:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover/img:opacity-100">
+                        <ExternalLink className="w-7 h-7 text-white drop-shadow-lg" />
+                    </div>
+                )}
+
                 {/* Paid badge */}
                 {stats.isPaid && (
                     <div className="absolute top-2 left-2 z-10">
@@ -166,8 +186,13 @@ export function PackageCard({
                     <div className="flex items-center gap-1.5 mb-0.5">
                         <MapPin className="w-3 h-3 text-violet-500 flex-shrink-0" />
                         <h3 className="font-semibold text-slate-900 dark:text-white text-sm truncate" title={packageName}>{packageName}</h3>
+                        {postUrl && (
+                            <a href={postUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="ml-auto shrink-0 text-slate-300 hover:text-violet-500 transition-colors" title="View post">
+                                <ExternalLink className="w-3 h-3" />
+                            </a>
+                        )}
                     </div>
-                    {destination !== "Unknown" && (
+                    {destination && destination !== packageName && (
                         <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium ml-4 mt-0.5 mb-1 bg-slate-100 dark:bg-white/5 w-fit px-1.5 py-0.5 rounded-sm">
                             <span>{destination}</span>
                         </div>
@@ -262,6 +287,20 @@ export function PackageCard({
 
                 {/* Action buttons — always visible at bottom */}
                 <div className="flex gap-2 mt-auto pt-1">
+                    {/* Delete button */}
+                    {onDelete && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="px-2.5 h-8 rounded-xl text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 border-slate-200 dark:border-white/10"
+                            onClick={onDelete}
+                            type="button"
+                            title="Remove package"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                    )}
+
                     {/* Edit Stats */}
                     <Button
                         size="sm"

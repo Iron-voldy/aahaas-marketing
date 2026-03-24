@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getPackages, addPackage, updatePackage, deletePackage } from "@/lib/firebase/db";
-import { storage } from "@/lib/firebase/config";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getPackages, addPackage, updatePackage, deletePackage } from "@/lib/db";
 import type { Row } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +15,7 @@ const GENERAL_FIELDS = [
     { name: "Destination", type: "text", label: "Destination (e.g. Singapore)" },
     { name: "Validity Period", type: "text", label: "Validity Period" },
     { name: "Date Published", type: "date", label: "Date Published" },
+    { name: "postUrl", type: "url", label: "Post URL (Facebook/Instagram link, optional)" },
 ];
 
 const FB_FIELDS = [
@@ -63,7 +62,7 @@ export default function DataEntryPage() {
     // Form state
     const [formData, setFormData] = useState<Record<string, string | number>>({});
     const [isBoosted, setIsBoosted] = useState(false);
-    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imageUrlInput, setImageUrlInput] = useState("");
     const [editingId, setEditingId] = useState<string | null>(null);
     const [entryDate, setEntryDate] = useState<string>(new Date().toISOString().split("T")[0]);
 
@@ -129,12 +128,6 @@ export default function DataEntryPage() {
         }));
     };
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setImageFile(e.target.files[0]);
-        }
-    };
-
     const handleEdit = (pkg: Row) => {
         const { id, imageUrl, isBoosted, ...rest } = pkg;
 
@@ -150,7 +143,7 @@ export default function DataEntryPage() {
         setIsBoosted(!!isBoosted);
         setEditingId(id || null);
         setEntryDate(new Date().toISOString().split("T")[0]); // Default to today even when editing
-        setImageFile(null); // Keep existing image unless they pick a new one
+        setImageUrlInput((imageUrl as string) || ""); // Pre-fill image URL
         setShowForm(true);
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
@@ -165,17 +158,9 @@ export default function DataEntryPage() {
 
         setIsSubmitting(true);
         try {
-            let imageUrl = null;
-            if (imageFile) {
-                // Upload image to Firebase Storage
-                const fileRef = ref(storage, `packages/${Date.now()}_${imageFile.name}`);
-                await uploadBytes(fileRef, imageFile);
-                imageUrl = await getDownloadURL(fileRef);
-            }
-
             const packageToSave: Record<string, any> = { ...formData };
-            if (imageUrl) {
-                packageToSave.imageUrl = imageUrl;
+            if (imageUrlInput.trim()) {
+                packageToSave.imageUrl = imageUrlInput.trim();
             }
             if (isBoosted) {
                 packageToSave.isBoosted = true;
@@ -203,14 +188,14 @@ export default function DataEntryPage() {
 
             // Reset and reload
             setFormData({});
-            setImageFile(null);
+            setImageUrlInput("");
             setIsBoosted(false);
             setEditingId(null);
             setShowForm(false);
             await loadData();
         } catch (error: any) {
             console.error("Error saving package", error);
-            alert(`Failed to save data. Error: ${error?.message || String(error)}\nPlease check your inputs or Firebase permissions.`);
+            alert(`Failed to save data. Error: ${error?.message || String(error)}`);
         } finally {
             setIsSubmitting(false);
         }
@@ -227,24 +212,17 @@ export default function DataEntryPage() {
     };
 
     const handleMigration = async () => {
-        if (!confirm("This will import all data from the local CSV file into the database. Make sure you are logged in. Continue?")) return;
+        if (!confirm("This will import all data from the local CSV file into the database. Continue?")) return;
         setIsMigrating(true);
         try {
-            const res = await fetch("/api/csv");
-            if (!res.ok) throw new Error("Failed to fetch CSV");
-            const { rows } = await res.json();
-
-            let count = 0;
-            for (const row of rows) {
-                const { id, ...cleanRow } = row;
-                await addPackage(cleanRow as Row);
-                count++;
-            }
-            alert(`Migration successful! Added ${count} packages to the database.`);
+            const res = await fetch("/api/migrate", { method: "POST" });
+            if (!res.ok) throw new Error("Migration API call failed");
+            const result = await res.json();
+            alert(result.message || "Migration complete.");
             await loadData();
         } catch (error) {
             console.error("Migration failed", error);
-            alert("Migration failed. Please make sure your Firestore Security Rules allow writes (e.g., request.auth != null) and you are logged in.");
+            alert("Migration failed. Check the console for details.");
         } finally {
             setIsMigrating(false);
         }
@@ -286,7 +264,7 @@ export default function DataEntryPage() {
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Data Entry</h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Manage package analytics data manually in Firestore.
+                        Manage package analytics data manually in MySQL.
                     </p>
                 </div>
                 {!showForm && (
@@ -303,7 +281,7 @@ export default function DataEntryPage() {
                         <Button onClick={() => {
                             setEditingId(null);
                             setFormData({});
-                            setImageFile(null);
+                            setImageUrlInput("");
                             setIsBoosted(false);
                             setShowForm(true);
                         }} className="bg-indigo-600 hover:bg-indigo-700 text-white">
@@ -349,27 +327,26 @@ export default function DataEntryPage() {
                             <div className="space-y-4">
                                 <h3 className="font-semibold text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-white/10 pb-2">Package Image</h3>
                                 <div className="flex items-center gap-4 p-2">
-                                    <div className="w-24 h-24 rounded-lg bg-slate-100 dark:bg-white/5 border-2 border-dashed border-slate-300 dark:border-white/20 flex flex-col items-center justify-center text-slate-500 overflow-hidden relative">
-                                        {imageFile ? (
-                                            <img src={URL.createObjectURL(imageFile)} alt="Preview" className="w-full h-full object-cover" />
+                                    <div className="w-24 h-24 rounded-lg bg-slate-100 dark:bg-white/5 border-2 border-dashed border-slate-300 dark:border-white/20 flex flex-col items-center justify-center text-slate-500 overflow-hidden">
+                                        {imageUrlInput.trim() ? (
+                                            <img src={imageUrlInput} alt="Preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                                         ) : (
                                             <>
                                                 <ImageIcon className="w-6 h-6 mb-1 opacity-50" />
                                                 <span className="text-[10px]">No Image</span>
                                             </>
                                         )}
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={handleImageChange}
-                                            className="absolute inset-0 opacity-0 cursor-pointer"
-                                            title="Click to upload image"
-                                        />
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Upload Package Flyer</p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Click the box to browse for an image. JPG, PNG supported.</p>
-                                        {imageFile && <p className="text-xs font-medium text-indigo-600 dark:text-indigo-400 mt-2">{imageFile.name}</p>}
+                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Image URL</p>
+                                        <Input
+                                            type="url"
+                                            placeholder="https://example.com/image.jpg"
+                                            value={imageUrlInput}
+                                            onChange={(e) => setImageUrlInput(e.target.value)}
+                                            className="mt-2 h-9 text-sm border-slate-200 dark:border-white/10 bg-white dark:bg-black/40"
+                                        />
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Paste a direct image URL (JPG, PNG, etc.)</p>
                                     </div>
                                 </div>
                             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getPackages } from "@/lib/firebase/db";
+import { getPackages } from "@/lib/db";
 import { inferSchema } from "@/lib/inferSchema";
 import { generateInsights, getLatestUpdateDate } from "@/lib/aggregate";
 import type { Row, InferredSchema } from "@/lib/types";

@@ -79,7 +79,7 @@ export function TrendChart({ rows, schema, dateRange }: TrendChartProps) {
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        {numericColumns.map((col) => (
+                        {numericColumns.filter((col) => col !== "").map((col) => (
                             <SelectItem key={col} value={col} className="text-xs">
                                 {col.replace(/_/g, " ")}
                             </SelectItem>

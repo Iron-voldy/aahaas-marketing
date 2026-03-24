@@ -1,24 +1,32 @@
 import { NextResponse } from "next/server";
 import { loadCsv } from "@/lib/loadCsv";
-import { addPackage } from "@/lib/firebase/db";
+import { getMysqlPool } from "@/lib/mysql";
 import { Row } from "@/lib/types";
+import { v4 as uuidv4 } from "uuid";
 
 export async function POST() {
     try {
-        console.log("Starting CSV to Firestore migration...");
+        console.log("Starting CSV to MySQL migration...");
         const { rows } = await loadCsv();
+        const pool = getMysqlPool();
+
+        await pool.execute("DELETE FROM pkg_data");
 
         let count = 0;
         let errors = 0;
 
         for (const row of rows) {
             try {
-                // Remove the undefined/id before pushing if any
-                const { id, ...cleanRow } = row;
-                await addPackage(cleanRow as Row);
+                const { id, ...cleanRow } = row as Row & { id?: string };
+                const newId = uuidv4();
+                const data = JSON.stringify(cleanRow);
+                await pool.execute(
+                    "INSERT INTO pkg_data (id, data, history) VALUES (?, ?, ?)",
+                    [newId, data, "{}"]
+                );
                 count++;
             } catch (err) {
-                console.error("Failed to add row:", row.Package, err);
+                console.error("Failed to add row:", (row as Row).Package, err);
                 errors++;
             }
         }

@@ -1,12 +1,16 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { User, onAuthStateChanged, signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase/config";
 import { useRouter, usePathname } from "next/navigation";
 
+export interface SessionUser {
+    id: number;
+    email: string;
+    name: string;
+}
+
 interface AuthContextType {
-    user: User | null;
+    user: SessionUser | null;
     loading: boolean;
     logout: () => Promise<void>;
 }
@@ -18,31 +22,35 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<SessionUser | null>(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
     const pathname = usePathname();
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-            setUser(currentUser);
-            setLoading(false);
+        fetch("/api/auth/me", { credentials: "include" })
+            .then((r) => (r.ok ? r.json() : { user: null }))
+            .then((data) => {
+                setUser(data.user ?? null);
+                setLoading(false);
+            })
+            .catch(() => {
+                setUser(null);
+                setLoading(false);
+            });
+    }, []);
 
-            // Basic route protection logic
-            const isPublicRoute = pathname === "/login";
-            if (!currentUser && !isPublicRoute) {
-                router.push("/login");
-            } else if (currentUser && isPublicRoute) {
-                router.push("/dashboard");
-            }
-        });
-
-        return () => unsubscribe();
-    }, [pathname, router]);
+    useEffect(() => {
+        if (loading) return;
+        const isPublicRoute = pathname === "/login" || pathname === "/register";
+        if (!user && !isPublicRoute) router.push("/login");
+        else if (user && isPublicRoute) router.push("/dashboard");
+    }, [user, loading, pathname, router]);
 
     const logout = async () => {
         try {
-            await signOut(auth);
+            await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+            setUser(null);
             router.push("/login");
         } catch (error) {
             console.error("Logout failed", error);

@@ -13,10 +13,8 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OfferCard } from "@/components/offers/OfferCard";
 import { OfferDetailModal } from "@/components/offers/OfferDetailModal";
-import { getOffers, addOffer, updateOffer, deleteOffer } from "@/lib/firebase/db";
-import { storage } from "@/lib/firebase/config";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import type { SeasonalOffer } from "@/lib/firebase/db";
+import { getOffers, addOffer, updateOffer, deleteOffer } from "@/lib/db";
+import type { SeasonalOffer } from "@/lib/db";
 import { cn } from "@/lib/utils";
 
 // ── Category options ────────────────────────────────────────────────────────
@@ -33,6 +31,7 @@ const GENERAL_FIELDS = [
     { name: "datePublished", type: "text", label: "Date Published (e.g. 01-Dec-24)" },
     { name: "price", type: "text", label: "Offer Price (e.g. LKR 2,500 per person)" },
     { name: "originalPrice", type: "text", label: "Original Price (optional, for strikethrough)" },
+    { name: "postUrl", type: "url", label: "Post URL (Facebook/Instagram link, optional)" },
 ];
 
 const FB_FIELDS = [
@@ -74,8 +73,7 @@ export function OffersClient() {
     const [category, setCategory] = useState("Spa");
     const [postType, setPostType] = useState<"single" | "group">("single");
     const [isBoosted, setIsBoosted] = useState(false);
-    const [imageFiles, setImageFiles] = useState<File[]>([]);
-    const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
+    const [imageUrlInputs, setImageUrlInputs] = useState<string[]>([""]);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Detail modal
@@ -142,8 +140,7 @@ export function OffersClient() {
         setCategory("Spa");
         setPostType("single");
         setIsBoosted(false);
-        setImageFiles([]);
-        setExistingImageUrls([]);
+        setImageUrlInputs([""]);
         setEditingId(null);
         setShowForm(false);
     };
@@ -159,8 +156,7 @@ export function OffersClient() {
         setPostType(pType || "single");
         setIsBoosted(!!boosted);
         setEditingId(id || null);
-        setImageFiles([]);
-        setExistingImageUrls(imageUrls || (imageUrl ? [imageUrl] : []));
+        setImageUrlInputs(imageUrls && imageUrls.length > 0 ? imageUrls : imageUrl ? [imageUrl] : [""]);
         setShowForm(true);
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
@@ -181,18 +177,8 @@ export function OffersClient() {
         if (!formData["name"]) { alert("Offer Name is required."); return; }
         setIsSubmitting(true);
         try {
-            const newlyUploadedUrls: string[] = [];
-
-            // Upload newly selected files
-            for (const file of imageFiles) {
-                const fileRef = ref(storage, `offers/${Date.now()}_${file.name}`);
-                await uploadBytes(fileRef, file);
-                const dlUrl = await getDownloadURL(fileRef);
-                newlyUploadedUrls.push(dlUrl);
-            }
-
-            // Combine existing untouched URLs + new uploaded URLs
-            const finalUrls = [...existingImageUrls, ...newlyUploadedUrls];
+            // Use entered image URLs directly
+            const finalUrls = imageUrlInputs.map(u => u.trim()).filter(Boolean);
             const primaryImageUrl = finalUrls.length > 0 ? finalUrls[0] : undefined;
 
             const payload: Omit<SeasonalOffer, "id"> = {
@@ -385,57 +371,41 @@ export function OffersClient() {
                                     </div>
                                 </div>
 
-                                {/* Image Upload */}
+                                {/* Image URLs */}
                                 <div className="space-y-4">
                                     <h3 className="font-semibold text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-white/10 pb-2 flex items-center justify-between">
                                         <span>Offer Image{postType === "group" ? "s" : ""}</span>
+                                        {postType === "group" && (
+                                            <Button type="button" variant="outline" size="sm" onClick={() => setImageUrlInputs(prev => [...prev, ""])}>
+                                                <Plus className="w-3 h-3 mr-1" /> Add URL
+                                            </Button>
+                                        )}
                                     </h3>
-                                    <div className="flex flex-col gap-4 p-2">
-                                        <div className="flex flex-wrap gap-4">
-                                            {/* Existing Images */}
-                                            {existingImageUrls.map((url, idx) => (
-                                                <div key={url} className="w-24 h-24 rounded-lg overflow-hidden relative group">
-                                                    <img src={url} alt={`Existing ${idx}`} className="w-full h-full object-cover" />
-                                                    <button type="button" onClick={() => setExistingImageUrls(prev => prev.filter((_, i) => i !== idx))} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <X className="w-3 h-3" />
-                                                    </button>
+                                    <div className="flex flex-col gap-3 p-2">
+                                        {imageUrlInputs.map((url, idx) => (
+                                            <div key={idx} className="flex items-center gap-2">
+                                                <div className="w-12 h-12 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                                                    {url.trim() ? (
+                                                        <img src={url} alt={`Preview ${idx}`} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                                    ) : (
+                                                        <ImageIcon className="w-5 h-5 opacity-30" />
+                                                    )}
                                                 </div>
-                                            ))}
-                                            {/* Preview New Images */}
-                                            {imageFiles.map((file, idx) => (
-                                                <div key={file.name} className="w-24 h-24 rounded-lg overflow-hidden relative group">
-                                                    <img src={URL.createObjectURL(file)} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
-                                                    <button type="button" onClick={() => setImageFiles(prev => prev.filter((_, i) => i !== idx))} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <X className="w-3 h-3" />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                            {/* Add button */}
-                                            {(postType === "group" || (existingImageUrls.length + imageFiles.length) === 0) && (
-                                                <div className="w-24 h-24 rounded-lg bg-slate-100 dark:bg-white/5 border-2 border-dashed border-slate-300 dark:border-white/20 flex flex-col items-center justify-center text-slate-500 overflow-hidden relative cursor-pointer hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">
-                                                    <Plus className="w-6 h-6 mb-1 opacity-50" />
-                                                    <span className="text-[10px]">Add Image</span>
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        multiple={postType === "group"}
-                                                        onChange={(e) => {
-                                                            if (e.target.files) {
-                                                                const newFiles = Array.from(e.target.files);
-                                                                setImageFiles(prev => postType === "single" ? newFiles.slice(0, 1) : [...prev, ...newFiles]);
-                                                                if (postType === "single") setExistingImageUrls([]); // Clear existing if switching out the only image
-                                                            }
-                                                        }}
-                                                        className="absolute inset-0 opacity-0 cursor-pointer"
-                                                        title="Click to upload"
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Upload Offer Flyer{postType === "group" ? "s" : ""}</p>
-                                            <p className="text-xs text-slate-500 mt-1">Click the box to browse. JPG, PNG supported.</p>
-                                        </div>
+                                                <Input
+                                                    type="url"
+                                                    placeholder="https://example.com/image.jpg"
+                                                    value={url}
+                                                    onChange={(e) => setImageUrlInputs(prev => prev.map((u, i) => i === idx ? e.target.value : u))}
+                                                    className="h-9 text-sm border-slate-200 dark:border-white/10 bg-white dark:bg-black/40 flex-1"
+                                                />
+                                                {imageUrlInputs.length > 1 && (
+                                                    <Button type="button" variant="ghost" size="icon" className="shrink-0 text-red-400 hover:text-red-500 w-8 h-8" onClick={() => setImageUrlInputs(prev => prev.filter((_, i) => i !== idx))}>
+                                                        <X className="w-4 h-4" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        ))}
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Paste direct image URLs (JPG, PNG, etc.)</p>
                                     </div>
                                 </div>
 

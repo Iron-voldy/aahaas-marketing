@@ -16,6 +16,7 @@ import {
     Database,
     Gift,
     PhoneCall,
+    FileSpreadsheet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -27,6 +28,7 @@ const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/packages", label: "Packages", icon: Package },
     { href: "/offers", label: "Seasonal Offers", icon: Gift },
+    { href: "/reports", label: "Excel Reports", icon: FileSpreadsheet },
     { href: "/inquiries", label: "Bookings & Inquiries", icon: PhoneCall },
     { href: "/insights", label: "Insights", icon: Lightbulb },
     { href: "/data-entry", label: "Data Entry", icon: Database },
@@ -75,7 +77,8 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
                     alt="Aahaas Logo"
                     width={100}
                     height={32}
-                    className="h-8 w-auto object-contain dark:hidden"
+                    style={{ width: 'auto', height: '2rem' }}
+                    className="object-contain dark:hidden"
                 />
                 {/* Dark mode logo (white) */}
                 <Image
@@ -83,7 +86,8 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
                     alt="Aahaas Logo"
                     width={100}
                     height={32}
-                    className="h-8 w-auto object-contain hidden dark:block"
+                    style={{ width: 'auto', height: '2rem' }}
+                    className="object-contain hidden dark:block"
                 />
                 <span className="text-violet-600 dark:text-violet-400 font-bold tracking-tight mt-1">
                     Analytics

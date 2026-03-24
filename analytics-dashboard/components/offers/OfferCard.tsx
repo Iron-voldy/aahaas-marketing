@@ -4,13 +4,13 @@ import Image from "next/image";
 import { useState } from "react";
 import {
     Sparkles, TrendingUp, Calendar, Eye, Edit2, Trash2,
-    Tag, Clock
+    Tag, Clock, ExternalLink
 } from "lucide-react";
 import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { SeasonalOffer } from "@/lib/firebase/db";
+import type { SeasonalOffer } from "@/lib/db";
 
 // Per-category colour palette & emoji
 const CATEGORY_THEMES: Record<string, { gradient: string; bg: string; accent: string; emoji: string; badgeClass: string }> = {
@@ -83,9 +83,12 @@ interface OfferCardProps {
 export function OfferCard({ offer, onViewDetail, onEdit, onDelete }: OfferCardProps) {
     const [imgError, setImgError] = useState(false);
     const theme = getTheme(offer.category || "");
-    const showRealImage = !!offer.imageUrl && !imgError;
+    // Firebase may store images as an array (imageUrls) or single string (imageUrl)
+    const primaryImage = (offer.imageUrls as string[])?.[0] || offer.imageUrl || "";
+    const showRealImage = !!primaryImage && !imgError;
     const combinedReach = offer.combinedReach ?? ((offer.fbReach ?? 0) + (offer.igReach ?? 0));
     const hasSocialStats = !!(offer.fbReach || offer.igReach);
+    const postUrl = (offer.postUrl as string) || "";
 
     return (
         <div
@@ -96,10 +99,17 @@ export function OfferCard({ offer, onViewDetail, onEdit, onDelete }: OfferCardPr
             )}
         >
             {/* ── Hero Image / Gradient Fallback ── */}
-            <div className="relative w-full aspect-[4/3] overflow-hidden flex-shrink-0">
+            <div
+                className={cn(
+                    "relative w-full aspect-[4/3] overflow-hidden flex-shrink-0 group/img",
+                    postUrl && "cursor-pointer"
+                )}
+                onClick={() => postUrl && window.open(postUrl, "_blank", "noopener,noreferrer")}
+                title={postUrl ? "Click to view post" : undefined}
+            >
                 {showRealImage ? (
                     <Image
-                        src={offer.imageUrl!}
+                        src={primaryImage}
                         alt={offer.name}
                         fill
                         className="object-cover transition-transform duration-500 group-hover:scale-105"
@@ -123,6 +133,13 @@ export function OfferCard({ offer, onViewDetail, onEdit, onDelete }: OfferCardPr
                         <div className="absolute bottom-2 left-0 right-0 flex justify-center">
                             <span className="text-[10px] text-white/40 font-semibold tracking-widest uppercase">aahaas</span>
                         </div>
+                    </div>
+                )}
+
+                {/* Post-link hover overlay */}
+                {postUrl && (
+                    <div className="absolute inset-0 z-20 bg-black/0 group-hover/img:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover/img:opacity-100">
+                        <ExternalLink className="w-7 h-7 text-white drop-shadow-lg" />
                     </div>
                 )}
 
@@ -160,6 +177,11 @@ export function OfferCard({ offer, onViewDetail, onEdit, onDelete }: OfferCardPr
                         <h3 className="font-semibold text-slate-900 dark:text-white text-sm truncate" title={offer.name}>
                             {offer.name}
                         </h3>
+                        {postUrl && (
+                            <a href={postUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="ml-auto shrink-0 text-slate-300 hover:text-violet-500 transition-colors" title="View post">
+                                <ExternalLink className="w-3 h-3" />
+                            </a>
+                        )}
                     </div>
                     {offer.description && (
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 ml-4 mt-0.5">

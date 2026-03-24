@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getLogs, type AuditLog } from "@/lib/firebase/db";
+import { getLogs, type AuditLog } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, ClipboardList, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";

@@ -97,7 +97,7 @@ export function PackageComparisonPanel({
     const chartData = metrics.map((m) => {
         const entry: Record<string, string | number> = { metric: m.label };
         rows.forEach((row, i) => {
-            const countryField = row["Package"] || row["package"] || row["country"];
+            const countryField = row["Package"] || row["Country"] || row["country"];
             const country = String(countryField ?? `Pkg ${i + 1}`);
             const date = String(row["date_published"] ?? row["Date Published"] ?? "").split(",")[0];
             entry[`${country} (${date})`] = getVal(row, m.key);
@@ -106,14 +106,14 @@ export function PackageComparisonPanel({
     }).filter((entry) => {
         // Only show metrics where at least one package has a non-zero value
         return rows.some((_, i) => {
-            const countryField = rows[i]["Package"] || rows[i]["package"] || rows[i]["country"];
+            const countryField = rows[i]["Package"] || rows[i]["Country"] || rows[i]["country"] || rows[i]["package"];
             const lbl = `${String(countryField ?? `Pkg ${i + 1}`)} (${String(rows[i]["date_published"] ?? rows[i]["Date Published"] ?? "").split(",")[0]})`;
             return Number(entry[lbl]) > 0;
         });
     });
 
     const seriesKeys = rows.map((row, i) => {
-        const countryField = row["Package"] || row["package"] || row["country"];
+        const countryField = row["Package"] || row["Country"] || row["country"];
         const country = String(countryField ?? `Pkg ${i + 1}`);
         const date = String(row["date_published"] ?? row["Date Published"] ?? "").split(",")[0];
         return `${country} (${date})`;
@@ -145,7 +145,7 @@ export function PackageComparisonPanel({
             {/* Selected package chips */}
             <div className="flex gap-2 flex-wrap px-5 py-3 border-b border-slate-100 dark:border-white/5">
                 {rows.map((row, i) => {
-                    const countryField = row["Package"] || row["package"] || row["country"];
+                    const countryField = row["Package"] || row["Country"] || row["country"];
                     const country = String(countryField ?? `Pkg ${i + 1}`);
                     const theme = getTheme(country);
                     return (
@@ -177,7 +177,7 @@ export function PackageComparisonPanel({
                                 Metric
                             </th>
                             {rows.map((row, i) => {
-                                const countryField = row["Package"] || row["package"] || row["country"];
+                                const countryField = row["Package"] || row["Country"] || row["country"];
                                 const country = String(countryField ?? `Pkg ${i + 1}`);
                                 const theme = getTheme(country);
                                 return (

@@ -1,7 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState, useMemo, useEffect } from "react";
-import { LayoutGrid, Table2, GitCompare, X, ImagePlus, Clock, Search } from "lucide-react";
+import { LayoutGrid, Table2, GitCompare, X, ImagePlus, Clock, Search, UploadCloud } from "lucide-react";
+import { BulkImportModal } from "@/components/packages/BulkImportModal";
 import { Filters } from "@/components/dashboard/Filters";
 import { useFilters } from "@/hooks/useFilters";
 import { sumColumn, getLatestUpdateDate } from "@/lib/aggregate";
@@ -9,16 +11,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PackageCard } from "@/components/packages/PackageCard";
-import { PackageDetailModal } from "@/components/packages/PackageDetailModal";
-import { PackageComparisonPanel } from "@/components/packages/PackageComparisonPanel";
 import { QuickEditStatsModal } from "@/components/packages/QuickEditStatsModal";
 import { PackagesTable } from "@/components/table/PackagesTable";
 import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 import type { Row, InferredSchema } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
-import { getPackages } from "@/lib/firebase/db";
+import { getPackages } from "@/lib/db";
+import { deletePackage } from "@/lib/db";
 import { inferSchema } from "@/lib/inferSchema";
+
+const PackageDetailModal = dynamic(
+    () => import("@/components/packages/PackageDetailModal").then(m => m.PackageDetailModal),
+    { ssr: false }
+);
+const PackageComparisonPanel = dynamic(
+    () => import("@/components/packages/PackageComparisonPanel").then(m => m.PackageComparisonPanel),
+    { ssr: false }
+);
 
 type ViewMode = "cards" | "table";
 
@@ -40,7 +50,7 @@ export function PackagesClient() {
                 setRows(data);
                 setSchema(inferSchema(data));
             })
-            .catch(console.error)
+            .catch((err) => console.error(err))
             .finally(() => setIsLoading(false));
     }, []);
 
@@ -58,6 +68,7 @@ export function PackagesClient() {
     const [detailRow, setDetailRow] = useState<Row | null>(null);
     const [quickEditRow, setQuickEditRow] = useState<Row | null>(null);
     const [showComparison, setShowComparison] = useState(false);
+    const [showBulkUpload, setShowBulkUpload] = useState(false);
 
     if (isLoading || !schema) {
         return <div className="p-8 flex justify-center"><Loader2 className="animate-spin w-8 h-8 text-indigo-500" /></div>;
@@ -78,6 +89,18 @@ export function PackagesClient() {
     const clearSelection = () => setSelectedIndices([]);
     const removeFromComparison = (i: number) => {
         setSelectedIndices((prev) => prev.filter((_, idx) => idx !== i));
+    };
+
+    const handleDeletePackage = async (id: string | undefined) => {
+        if (!id) return;
+        if (!confirm("Remove this package? This cannot be undone.")) return;
+        try {
+            await deletePackage(id);
+            setRows(prev => prev.filter(r => r.id !== id));
+        } catch (err) {
+            console.error("Delete failed", err);
+            alert("Failed to delete package.");
+        }
     };
 
     // Compute platform totals
@@ -115,8 +138,17 @@ export function PackagesClient() {
                         </div>
                     )}
 
-                    {/* View toggle */}
+                    {/* View toggle + Upload button */}
                     <div className="flex flex-wrap items-center gap-2">
+                        {/* Upload Sheet button */}
+                        <button
+                            onClick={() => setShowBulkUpload(true)}
+                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-400 hover:border-violet-300 dark:hover:border-violet-500/40 hover:bg-violet-50 dark:hover:bg-violet-500/5 transition-colors"
+                        >
+                            <UploadCloud className="w-3.5 h-3.5" />
+                            Upload Sheet
+                        </button>
+
                         <div className="flex rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden">
                             <button
                                 onClick={() => setViewMode("cards")}
@@ -244,7 +276,8 @@ export function PackagesClient() {
                                             onToggleSelect={() => toggleSelect(originalIndex)}
                                             onViewDetail={() => setDetailRow(row)}
                                             onQuickEdit={() => setQuickEditRow(row)}
-                                            imagePath={(row.imageUrl as string) || getFlyerImage(originalIndex)}
+                                            onDelete={() => handleDeletePackage(row.id as string)}
+                                            imagePath={(row.imageUrls as unknown as string[])?.[0] || (row.imageUrl as string) || null}
                                         />
                                     );
                                 })}
@@ -274,6 +307,24 @@ export function PackagesClient() {
                 onUpdateSuccess={() => {
                     setQuickEditRow(null);
                     // Refresh data after edit
+                    setIsLoading(true);
+                    getPackages()
+                        .then((data) => {
+                            setRows(data);
+                            setSchema(inferSchema(data));
+                        })
+                        .catch(console.error)
+                        .finally(() => setIsLoading(false));
+                }}
+            />
+
+            {/* Bulk Import Modal (MySQL-based matching) */}
+            <BulkImportModal
+                open={showBulkUpload}
+                onClose={() => setShowBulkUpload(false)}
+                packages={rows}
+                onUpdateSuccess={() => {
+                    setShowBulkUpload(false);
                     setIsLoading(true);
                     getPackages()
                         .then((data) => {
