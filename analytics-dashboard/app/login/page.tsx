@@ -7,7 +7,7 @@ import { Loader2, Lock, Mail, Eye, EyeOff, Zap, TrendingUp, BarChart3, Globe } f
 import { useAuth } from "@/components/auth/AuthProvider";
 
 export default function LoginPage() {
-    const { user, loading: authLoading } = useAuth();
+    const { user, loading: authLoading, setUser } = useAuth();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
@@ -45,7 +45,9 @@ export default function LoginPage() {
             });
             const data = await resp.json();
             if (!resp.ok) throw new Error(data.error || "Login failed");
-            router.push("/dashboard");
+            // Update auth context first — the AuthProvider redirect effect
+            // will navigate to /dashboard once user state is set.
+            setUser(data.user);
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : "Failed to login. Please check your credentials.");
         } finally {

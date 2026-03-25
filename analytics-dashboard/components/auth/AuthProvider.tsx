@@ -12,12 +12,14 @@ export interface SessionUser {
 interface AuthContextType {
     user: SessionUser | null;
     loading: boolean;
+    setUser: (user: SessionUser | null) => void;
     logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
     user: null,
     loading: true,
+    setUser: () => { },
     logout: async () => { },
 });
 
@@ -58,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, logout }}>
+        <AuthContext.Provider value={{ user, loading, setUser, logout }}>
             {children}
         </AuthContext.Provider>
     );
