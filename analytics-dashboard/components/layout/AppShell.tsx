@@ -105,7 +105,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
             </div>
 
             {/* Content */}
-            <div className="relative z-10 flex flex-col h-full px-4 py-5">
+            <div className="relative z-10 flex flex-col h-full px-4 py-5 min-h-0">
                 {/* Logo */}
                 <div className="flex items-center gap-3 px-2 mb-7">
                     <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg shadow-violet-500/30 flex-shrink-0">
@@ -140,7 +140,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
                 <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest px-3 mb-2">Main Menu</p>
 
                 {/* Navigation */}
-                <nav className="flex flex-col gap-1 flex-1">
+                <nav className="flex flex-col gap-1 flex-1 overflow-y-auto min-h-0 scrollbar-none pb-1">
                     {navItems.map((item) => (
                         <NavLink key={item.href} {...item} onClick={onClose} />
                     ))}
