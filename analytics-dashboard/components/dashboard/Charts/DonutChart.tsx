@@ -74,12 +74,15 @@ export function DonutChart({ rows, schema, dateRange }: DonutChartProps) {
     const data = pieBreakdown(rows, catCol, valueCol, dateRange?.from, dateRange?.to);
 
     return (
-        <Card className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111118] shadow-sm">
+        <Card className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#0f0f1e] shadow-sm">
             <CardHeader className="px-6 pt-5 pb-0">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <CardTitle className="text-base font-semibold text-slate-800 dark:text-white">
-                        Share Breakdown
-                    </CardTitle>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <CardTitle className="text-base font-semibold text-slate-800 dark:text-white">
+                            Share Breakdown
+                        </CardTitle>
+                        <p className="text-xs text-slate-400 mt-0.5">Distribution by category & value</p>
+                    </div>
                     <div className="flex gap-2">
                         <Select value={catCol} onValueChange={setCatCol}>
                             <SelectTrigger className="w-36 h-8 text-xs rounded-lg">
@@ -114,29 +117,41 @@ export function DonutChart({ rows, schema, dateRange }: DonutChartProps) {
                         <p className="text-slate-400 text-sm">No data available.</p>
                     </div>
                 ) : (
-                    <ResponsiveContainer width="100%" height={230}>
-                        <PieChart>
-                            <Pie
-                                data={data}
-                                cx="50%"
-                                cy="45%"
-                                innerRadius={58}
-                                outerRadius={88}
-                                paddingAngle={3}
-                                dataKey="value"
-                            >
-                                {data.map((_, index) => (
-                                    <Cell
-                                        key={index}
-                                        fill={COLORS[index % COLORS.length]}
-                                        stroke="transparent"
-                                    />
-                                ))}
-                            </Pie>
-                            <Tooltip content={<CustomTooltip />} />
-                            <Legend content={<CustomLegend />} />
-                        </PieChart>
-                    </ResponsiveContainer>
+                    <div className="relative">
+                        <ResponsiveContainer width="100%" height={240}>
+                            <PieChart>
+                                <Pie
+                                    data={data}
+                                    cx="50%"
+                                    cy="46%"
+                                    innerRadius={64}
+                                    outerRadius={95}
+                                    paddingAngle={3}
+                                    dataKey="value"
+                                    strokeWidth={0}
+                                >
+                                    {data.map((_, index) => (
+                                        <Cell
+                                            key={index}
+                                            fill={COLORS[index % COLORS.length]}
+                                            stroke="transparent"
+                                        />
+                                    ))}
+                                </Pie>
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend content={<CustomLegend />} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                        {/* Center label */}
+                        <div className="absolute pointer-events-none" style={{ top: 0, left: 0, right: 0, height: "78%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <div className="text-center">
+                                <p className="text-xl font-bold text-slate-900 dark:text-white leading-none">
+                                    {data.reduce((s, d) => s + d.value, 0).toLocaleString()}
+                                </p>
+                                <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wide">Total</p>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </CardContent>
         </Card>

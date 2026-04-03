@@ -7,12 +7,19 @@ import {
     Eye, MousePointerClick, Heart, MessageCircle, Share2, Bookmark,
     TrendingUp, Users, ChevronDown, ChevronUp, ExternalLink, X,
     BarChart3, RefreshCw, Loader2, Play, Image as ImageIcon, Grid3X3, List,
+    GitCompare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { shouldBypassNextImageOptimization } from "@/lib/image";
 import { cn } from "@/lib/utils";
 import { BulkImportModal } from "@/components/packages/BulkImportModal";
 import { getPackages } from "@/lib/db";
 import type { Row } from "@/lib/types";
+import { exportRecordToXlsx } from "@/lib/exporters";
+import {
+    BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
+    LineChart, Line, CartesianGrid,
+} from "recharts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -122,6 +129,28 @@ function fmtDate(d: string): string {
     return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function getEmbeddablePostUrl(group: GroupedPost): string | null {
+    return group.fbPost?.permalink || group.igPost?.permalink || group.primaryPost.permalink || null;
+}
+
+function toEmbedUrl(permalink: string | null): string | null {
+    if (!permalink) return null;
+    const url = permalink.trim();
+    if (!url) return null;
+
+    if (url.includes("instagram.com")) {
+        const match = url.match(/instagram\.com\/(?:p|reel|tv)\/([^/?#]+)/i);
+        if (!match?.[1]) return null;
+        return `https://www.instagram.com/p/${match[1]}/embed/`;
+    }
+
+    if (url.includes("facebook.com") || url.includes("fb.watch")) {
+        return `https://www.facebook.com/plugins/post.php?href=${encodeURIComponent(url)}&show_text=false&width=500`;
+    }
+
+    return null;
+}
+
 function getMonthOptions(): { label: string; from: string; to: string }[] {
     const months: { label: string; from: string; to: string }[] = [];
     const now = new Date();
@@ -134,6 +163,26 @@ function getMonthOptions(): { label: string; from: string; to: string }[] {
         months.push({ label, from, to });
     }
     return months;
+}
+
+function aggregateMonthStats(posts: PostRow[]) {
+    const fb = posts.filter(p => p.source_type === "fb_post" || p.source_type === "fb_video");
+    const ig = posts.filter(p => p.source_type === "ig_post" || p.source_type === "ig_story");
+    return {
+        fbReach: fb.reduce((s, p) => s + (p.reach || 0), 0),
+        igReach: ig.reduce((s, p) => s + (p.reach || 0), 0),
+        fbReactions: fb.reduce((s, p) => s + (p.reactions || 0), 0),
+        igReactions: ig.reduce((s, p) => s + (p.reactions || 0), 0),
+        fbComments: fb.reduce((s, p) => s + (p.comments || 0), 0),
+        igComments: ig.reduce((s, p) => s + (p.comments || 0), 0),
+        fbShares: fb.reduce((s, p) => s + (p.shares || 0), 0),
+        igShares: ig.reduce((s, p) => s + (p.shares || 0), 0),
+        fbClicks: fb.reduce((s, p) => s + (p.total_clicks || 0), 0),
+        igSaves: ig.reduce((s, p) => s + (p.saves || 0), 0),
+        fbViews: fb.reduce((s, p) => s + (p.views || 0), 0),
+        igViews: ig.reduce((s, p) => s + (p.views || 0), 0),
+        posts: posts.length, fbPosts: fb.length, igPosts: ig.length,
+    };
 }
 
 // Destination color themes for card thumbnails
@@ -747,7 +796,7 @@ export function ReportsClient() {
             )}
 
             <BulkImportModal open={showUpload} onClose={() => setShowUpload(false)} packages={packages} onUpdateSuccess={() => { setShowUpload(false); fetchPosts(); getPackages().then(setPackages).catch(() => {}); }} />
-            {detailGroup && <PostDetailModal group={detailGroup} onClose={() => setDetailGroup(null)} />}
+            {detailGroup && <PostDetailModal group={detailGroup} allPosts={posts} onClose={() => setDetailGroup(null)} />}
         </div>
     );
 }
@@ -761,11 +810,47 @@ function PostCard({ group, onClick, onCategorize, categorizing }: {
     categorizing: boolean;
 }) {
     const [imgError, setImgError] = useState(false);
+    const [embedError, setEmbedError] = useState(false);
     const theme = getDestTheme(group.country);
     const cat = CATEGORY_BADGE[group.category] || CATEGORY_BADGE.general;
     const isVideo = group.platforms.some(p => p.source_type === "fb_video");
     const hasMulti = group.platforms.length > 1;
     const hasImage = !!group.imageUrl && !imgError;
+    const embedUrl = toEmbedUrl(getEmbeddablePostUrl(group));
+    const hasEmbed = !hasImage && !!embedUrl && !embedError;
+
+    const handleExportPostXlsx = () => {
+        const exportData: Record<string, unknown> = {
+            title: group.displayTitle,
+            date: group.displayDate,
+            category: group.category,
+            country: group.country,
+            imageUrl: group.imageUrl,
+            combinedReach: group.combinedReach,
+            combinedReactions: group.combinedReactions,
+            combinedComments: group.combinedComments,
+            combinedShares: group.combinedShares,
+            combinedClicks: group.combinedClicks,
+            combinedSaves: group.combinedSaves,
+            combinedViews: group.combinedViews,
+            combinedFollows: group.combinedFollows,
+            fbPermalink: group.fbPost?.permalink,
+            igPermalink: group.igPost?.permalink,
+            platforms: group.platforms.map((p) => ({
+                source: p.source_type,
+                publishTime: p.publish_time,
+                permalink: p.permalink,
+                reach: p.reach,
+                reactions: p.reactions,
+                comments: p.comments,
+                shares: p.shares,
+                clicks: p.total_clicks,
+                saves: p.saves,
+                views: p.views,
+            })),
+        };
+        exportRecordToXlsx(`post-${group.displayTitle.slice(0, 40)}`, exportData, "Post");
+    };
 
     // Extract price from post text to show in the no-image placeholder
     const postText = group.primaryPost.title || group.primaryPost.description || "";
@@ -779,9 +864,20 @@ function PostCard({ group, onClick, onCategorize, categorizing }: {
                         src={group.imageUrl!}
                         alt={group.displayTitle}
                         fill
+                        unoptimized={shouldBypassNextImageOptimization(group.imageUrl)}
                         className="object-cover transition-transform duration-500 group-hover:scale-105"
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                         onError={() => setImgError(true)}
+                    />
+                ) : hasEmbed ? (
+                    <iframe
+                        src={embedUrl!}
+                        title={group.displayTitle}
+                        className="absolute inset-0 w-full h-full border-0 pointer-events-none"
+                        loading="lazy"
+                        sandbox="allow-scripts allow-same-origin allow-popups"
+                        referrerPolicy="no-referrer-when-downgrade"
+                        onError={() => setEmbedError(true)}
                     />
                 ) : (
                     <div className="absolute inset-0 flex flex-col justify-center items-start p-4 gap-2">
@@ -798,7 +894,17 @@ function PostCard({ group, onClick, onCategorize, categorizing }: {
                         )}
                     </div>
                 )}
-                <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handleExportPostXlsx();
+                    }}
+                    className="absolute top-3 left-3 z-20 px-2.5 h-7 rounded-lg bg-slate-900/85 text-white border border-white/20 text-[11px] font-semibold hover:bg-slate-800 transition-colors"
+                    title="Export post details to Excel"
+                >
+                    Export
+                </button>
+                <div className="absolute top-3 left-24 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center">
                     {isVideo ? <Play className="w-4 h-4 text-white fill-white" /> : <ImageIcon className="w-4 h-4 text-white" />}
                 </div>
                 <div className="absolute top-3 right-3 flex gap-1">
@@ -873,94 +979,320 @@ function MetricPill({ icon: Icon, value, label }: { icon: typeof Eye; value: num
     );
 }
 
-// ─── Detail Modal ────────────────────────────────────────────────────────────
+// ─── Detail Modal (Big 3-Pane) ───────────────────────────────────────────────
 
-function PostDetailModal({ group, onClose }: { group: GroupedPost; onClose: () => void }) {
+function PostDetailModal({ group, allPosts, onClose }: {
+    group: GroupedPost;
+    allPosts: PostRow[];
+    onClose: () => void;
+}) {
     const theme = getDestTheme(group.country);
     const cat = CATEGORY_BADGE[group.category] || CATEGORY_BADGE.general;
+    const monthOptions = useMemo(() => getMonthOptions(), []);
+    const [monthA, setMonthA] = useState(monthOptions[1]?.from || "");
+    const [monthB, setMonthB] = useState(monthOptions[0]?.from || "");
+    const [imgError, setImgError] = useState(false);
+    const [embedError, setEmbedError] = useState(false);
+
+    const getMonthPosts = useCallback((from: string) => {
+        const opt = monthOptions.find(m => m.from === from);
+        if (!opt) return [];
+        return allPosts.filter(p => p.publish_time >= opt.from && p.publish_time <= opt.to);
+    }, [allPosts, monthOptions]);
+
+    const statsA = useMemo(() => aggregateMonthStats(getMonthPosts(monthA)), [getMonthPosts, monthA]);
+    const statsB = useMemo(() => aggregateMonthStats(getMonthPosts(monthB)), [getMonthPosts, monthB]);
+    const labelA = monthOptions.find(m => m.from === monthA)?.label || "Month A";
+    const labelB = monthOptions.find(m => m.from === monthB)?.label || "Month B";
+
+    // Current post FB vs IG chart data
+    const postChartData = [
+        { metric: "Reach", FB: group.fbPost?.reach || 0, IG: group.igPost?.reach || 0 },
+        { metric: "React.", FB: group.fbPost?.reactions || 0, IG: group.igPost?.reactions || 0 },
+        { metric: "Comments", FB: group.fbPost?.comments || 0, IG: group.igPost?.comments || 0 },
+        { metric: "Shares", FB: group.fbPost?.shares || 0, IG: group.igPost?.shares || 0 },
+        { metric: "Clicks", FB: group.fbPost?.total_clicks || 0, IG: group.igPost?.total_clicks || 0 },
+        { metric: "Saves", FB: 0, IG: group.igPost?.saves || 0 },
+    ];
+
+    // Month comparison chart data
+    const monthChartData = [
+        { metric: "Reach", [labelA]: statsA.fbReach + statsA.igReach, [labelB]: statsB.fbReach + statsB.igReach },
+        { metric: "React.", [labelA]: statsA.fbReactions + statsA.igReactions, [labelB]: statsB.fbReactions + statsB.igReactions },
+        { metric: "Comments", [labelA]: statsA.fbComments + statsA.igComments, [labelB]: statsB.fbComments + statsB.igComments },
+        { metric: "Shares", [labelA]: statsA.fbShares + statsA.igShares, [labelB]: statsB.fbShares + statsB.igShares },
+    ];
+
+    const compRows = [
+        { label: "Reach", icon: Eye, fb: group.fbPost?.reach || 0, ig: group.igPost?.reach || 0 },
+        { label: "Reactions", icon: Heart, fb: group.fbPost?.reactions || 0, ig: group.igPost?.reactions || 0 },
+        { label: "Comments", icon: MessageCircle, fb: group.fbPost?.comments || 0, ig: group.igPost?.comments || 0 },
+        { label: "Shares", icon: Share2, fb: group.fbPost?.shares || 0, ig: group.igPost?.shares || 0 },
+        { label: "Clicks", icon: MousePointerClick, fb: group.fbPost?.total_clicks || 0, ig: group.igPost?.total_clicks || 0 },
+        { label: "Saves", icon: Bookmark, fb: 0, ig: group.igPost?.saves || 0 },
+        { label: "Views", icon: BarChart3, fb: group.fbPost?.views || 0, ig: group.igPost?.views || 0 },
+        { label: "Follows", icon: Users, fb: group.fbPost?.follows || 0, ig: group.igPost?.follows || 0 },
+    ];
+
+    const hasImage = !!group.imageUrl && !imgError;
+    const embedUrl = toEmbedUrl(getEmbeddablePostUrl(group));
+    const hasEmbed = !hasImage && !!embedUrl && !embedError;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-white dark:bg-[#13131d] rounded-2xl shadow-2xl border border-slate-200 dark:border-white/10 max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                <div className={cn("relative h-48 rounded-t-2xl overflow-hidden", !group.imageUrl && `bg-linear-to-br ${theme.gradient}`)}>
-                    {group.imageUrl ? (
-                        <NextImage src={group.imageUrl} alt={group.displayTitle} fill className="object-cover" sizes="672px" />
-                    ) : (
-                        <div className={cn("absolute inset-0 bg-linear-to-br", theme.gradient)}>
-                            <div className="absolute inset-0 flex items-center justify-center"><span className="text-6xl opacity-30 select-none">{theme.emoji}</span></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4" onClick={onClose}>
+            <div
+                className="bg-white dark:bg-[#0f0f1e] rounded-2xl shadow-2xl border border-slate-200 dark:border-white/10 flex flex-col overflow-hidden"
+                style={{ width: "80vw", height: "70vh", maxWidth: "1400px" }}
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Modal Header */}
+                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-white/8 bg-gradient-to-r from-violet-950/40 to-purple-900/20 flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center">
+                            <GitCompare className="w-4 h-4 text-white" />
                         </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                    <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50"><X className="w-4 h-4" /></button>
-                    <div className="absolute bottom-4 left-4 flex gap-2">
-                        {group.platforms.map(p => { const src = SOURCE_BADGE[p.source_type]; return <span key={p.id} className={cn("text-xs font-medium px-2.5 py-1 rounded-full backdrop-blur-sm", src?.color || "bg-white/20 text-white")}>{src?.label || p.source_type}</span>; })}
-                        <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full backdrop-blur-sm", cat.color)}>{cat.label}</span>
-                    </div>
-                </div>
-                <div className="p-6 space-y-5">
-                    <div>
-                        <div className="flex items-center gap-2 text-xs text-slate-400 mb-2">
-                            <span>{fmtDate(group.displayDate)}</span>
-                            {group.country && <><span>&middot;</span><span>{group.country}</span></>}
-                            {group.platforms.length > 1 && <><span>&middot;</span><span className="text-violet-500 font-medium">Cross-platform post</span></>}
-                        </div>
-                        <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed bg-slate-50 dark:bg-white/5 rounded-xl p-4">
-                            {group.primaryPost.title || group.primaryPost.description || "No description available"}
-                        </p>
-                    </div>
-                    <div>
-                        <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Combined Metrics</h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {[
-                                { label: "Reach", value: group.combinedReach, icon: Eye },
-                                { label: "Reactions", value: group.combinedReactions, icon: Heart },
-                                { label: "Comments", value: group.combinedComments, icon: MessageCircle },
-                                { label: "Shares", value: group.combinedShares, icon: Share2 },
-                                { label: "Clicks", value: group.combinedClicks, icon: MousePointerClick },
-                                { label: "Saves", value: group.combinedSaves, icon: Bookmark },
-                                { label: "Views", value: group.combinedViews, icon: BarChart3 },
-                                { label: "Follows", value: group.combinedFollows, icon: Users },
-                            ].filter(m => m.value > 0).map((m) => (
-                                <div key={m.label} className="rounded-lg border border-slate-100 dark:border-white/5 p-3 space-y-1">
-                                    <div className="flex items-center gap-1.5 text-slate-400"><m.icon className="w-3.5 h-3.5" /><span className="text-[10px] uppercase tracking-wider font-medium">{m.label}</span></div>
-                                    <p className="text-lg font-bold text-slate-900 dark:text-white">{fmt(m.value)}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    {group.platforms.length > 1 && (
                         <div>
-                            <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Platform Breakdown</h3>
-                            <div className="space-y-3">
-                                {group.platforms.map(p => {
-                                    const src = SOURCE_BADGE[p.source_type];
-                                    return (
-                                        <div key={p.id} className="rounded-lg border border-slate-100 dark:border-white/5 p-3">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", src?.color || "bg-slate-100 text-slate-600")}>{src?.label || p.source_type}</span>
-                                                {p.permalink && <a href={p.permalink} target="_blank" rel="noopener noreferrer" className="text-xs text-violet-500 hover:underline flex items-center gap-1"><ExternalLink className="w-3 h-3" /> View Post</a>}
-                                            </div>
-                                            <div className="flex gap-4 text-xs text-slate-600 dark:text-slate-300">
-                                                <span>Reach: <strong>{fmt(p.reach)}</strong></span>
-                                                <span>Reactions: <strong>{fmt(p.reactions)}</strong></span>
-                                                <span>Comments: <strong>{fmt(p.comments)}</strong></span>
-                                                <span>Shares: <strong>{fmt(p.shares)}</strong></span>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                            <h2 className="text-sm font-bold text-slate-900 dark:text-white">Post Analytics & Comparison</h2>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{fmtDate(group.displayDate)} &bull; {group.country || "All regions"}</p>
+                        </div>
+                        <div className="flex gap-1.5 ml-2">
+                            {group.platforms.map(p => { const src = SOURCE_BADGE[p.source_type]; return <span key={p.id} className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full", src?.color)}>{src?.label}</span>; })}
+                            <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full", cat.color)}>{cat.label}</span>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                {/* 3-Column Body */}
+                <div className="flex flex-1 overflow-hidden">
+
+                    {/* ── LEFT: Post Details ── */}
+                    <div className="w-[26%] flex flex-col overflow-y-auto border-r border-slate-100 dark:border-white/8 flex-shrink-0">
+                        {/* Image / Fallback */}
+                        <div className={cn("relative w-full aspect-video flex-shrink-0", !hasImage && `bg-gradient-to-br ${theme.gradient}`)}>
+                            {hasImage ? (
+                                <NextImage src={group.imageUrl!} alt={group.displayTitle} fill unoptimized={shouldBypassNextImageOptimization(group.imageUrl)} className="object-cover" sizes="400px" onError={() => setImgError(true)} />
+                            ) : hasEmbed ? (
+                                <iframe
+                                    src={embedUrl!}
+                                    title={group.displayTitle}
+                                    className="absolute inset-0 w-full h-full border-0"
+                                    loading="lazy"
+                                    sandbox="allow-scripts allow-same-origin allow-popups"
+                                    referrerPolicy="no-referrer-when-downgrade"
+                                    onError={() => setEmbedError(true)}
+                                />
+                            ) : (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                                    <span className="text-5xl opacity-40">{theme.emoji}</span>
+                                    <span className="text-xs text-white/60 font-medium px-3 text-center line-clamp-2">{group.displayTitle.slice(0, 60)}</span>
+                                </div>
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                        </div>
+                        {/* Post info */}
+                        <div className="p-4 flex flex-col gap-3 flex-1">
+                            <p className="text-sm font-semibold text-slate-900 dark:text-white leading-snug">{group.displayTitle.slice(0, 120)}</p>
+                            <div className="space-y-1.5 text-xs">
+                                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                    <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                                    <span>{fmtDate(group.displayDate)}</span>
+                                </div>
+                                {group.country && <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400"><Users className="w-3.5 h-3.5" /><span>{group.country}</span></div>}
+                            </div>
+                            {/* Platform links */}
+                            <div className="flex flex-col gap-1.5">
+                                {group.fbPost?.permalink && <a href={group.fbPost.permalink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center">f</span> View Facebook Post <ExternalLink className="w-3 h-3" />
+                                </a>}
+                                {group.igPost?.permalink && <a href={group.igPost.permalink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-pink-600 dark:text-pink-400 hover:underline">
+                                    <span className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-white text-[9px] font-bold flex items-center justify-center">IG</span> View Instagram Post <ExternalLink className="w-3 h-3" />
+                                </a>}
+                            </div>
+                            {/* Description */}
+                            {(group.primaryPost.description || group.primaryPost.title) && (
+                                <div className="mt-1 rounded-xl bg-slate-50 dark:bg-white/5 p-3">
+                                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-6">{group.primaryPost.description || group.primaryPost.title}</p>
+                                </div>
+                            )}
+                            {/* Combined summary chips */}
+                            <div className="grid grid-cols-2 gap-1.5 mt-auto">
+                                {[{l:"Reach",v:group.combinedReach},{l:"React.",v:group.combinedReactions},{l:"Comments",v:group.combinedComments},{l:"Shares",v:group.combinedShares}].map(s=>(
+                                    <div key={s.l} className="rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-800/30 p-2 text-center">
+                                        <p className="text-xs font-bold text-violet-700 dark:text-violet-300">{fmt(s.v)}</p>
+                                        <p className="text-[9px] text-slate-400 uppercase">{s.l}</p>
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                    )}
-                    {group.platforms.length === 1 && group.primaryPost.permalink && (
-                        <a href={group.primaryPost.permalink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-violet-600 dark:text-violet-400 hover:underline"><ExternalLink className="w-4 h-4" /> View Original Post</a>
-                    )}
-                    {group.primaryPost.target_type && (
-                        <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-3">
-                            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Matched to {group.primaryPost.target_type === "package" ? "Package" : "Offer"}</p>
-                            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Method: {group.primaryPost.match_method} &bull; Confidence: {group.primaryPost.confidence}%</p>
+                    </div>
+
+                    {/* ── MIDDLE: Comparison Table ── */}
+                    <div className="flex-1 flex flex-col overflow-y-auto border-r border-slate-100 dark:border-white/8">
+                        {/* Post FB vs IG Table */}
+                        <div className="p-4 border-b border-slate-100 dark:border-white/8">
+                            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <span className="w-1.5 h-4 rounded-full bg-gradient-to-b from-blue-500 to-pink-500 inline-block" />
+                                Facebook vs Instagram — This Post
+                            </h3>
+                            <div className="rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden">
+                                <table className="w-full text-xs">
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-white/5">
+                                            <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 w-24">Metric</th>
+                                            <th className="text-center px-3 py-2.5 font-semibold text-[#1877F2] bg-blue-50/50 dark:bg-blue-900/10">Facebook</th>
+                                            <th className="text-center px-3 py-2.5 font-semibold text-pink-500 bg-pink-50/50 dark:bg-pink-900/10">Instagram</th>
+                                            <th className="text-center px-3 py-2.5 font-semibold text-violet-600 dark:text-violet-400">Combined</th>
+                                            <th className="text-center px-3 py-2.5 font-semibold text-slate-400">Winner</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {compRows.map((row, i) => {
+                                            const total = row.fb + row.ig;
+                                            const fbPct = total > 0 ? Math.round(row.fb / total * 100) : 50;
+                                            const winner = row.fb > row.ig ? "FB" : row.ig > row.fb ? "IG" : "Tie";
+                                            return (
+                                                <tr key={row.label} className={cn("border-t border-slate-100 dark:border-white/5", i % 2 === 0 ? "" : "bg-slate-50/50 dark:bg-white/[0.02]")}>
+                                                    <td className="px-3 py-2.5">
+                                                        <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                                                            <row.icon className="w-3 h-3 text-slate-400" />{row.label}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-2.5 text-center">
+                                                        <div className="font-bold text-blue-700 dark:text-blue-300">{fmt(row.fb)}</div>
+                                                        <div className="w-full bg-blue-100 dark:bg-blue-900/20 rounded-full h-1 mt-1"><div className="bg-blue-500 h-1 rounded-full transition-all" style={{width:`${fbPct}%`}} /></div>
+                                                    </td>
+                                                    <td className="px-3 py-2.5 text-center">
+                                                        <div className="font-bold text-pink-600 dark:text-pink-300">{fmt(row.ig)}</div>
+                                                        <div className="w-full bg-pink-100 dark:bg-pink-900/20 rounded-full h-1 mt-1"><div className="bg-pink-500 h-1 rounded-full transition-all" style={{width:`${100-fbPct}%`}} /></div>
+                                                    </td>
+                                                    <td className="px-3 py-2.5 text-center font-bold text-slate-900 dark:text-white">{fmt(total)}</td>
+                                                    <td className="px-3 py-2.5 text-center">
+                                                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", winner==="FB" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" : winner==="IG" ? "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300" : "bg-slate-100 text-slate-500")}>{winner}</span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                    )}
+
+                        {/* Month Comparison */}
+                        <div className="p-4">
+                            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <span className="w-1.5 h-4 rounded-full bg-gradient-to-b from-amber-400 to-violet-500 inline-block" />
+                                Month-Wise Comparison
+                            </h3>
+                            <div className="flex gap-2 mb-4">
+                                <div className="flex-1">
+                                    <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block mb-1">Month A</label>
+                                    <select value={monthA} onChange={e => setMonthA(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500/30">
+                                        {monthOptions.map(m => <option key={m.from} value={m.from}>{m.label}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex items-end pb-1.5 text-slate-400 text-xs font-bold">vs</div>
+                                <div className="flex-1">
+                                    <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block mb-1">Month B</label>
+                                    <select value={monthB} onChange={e => setMonthB(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500/30">
+                                        {monthOptions.map(m => <option key={m.from} value={m.from}>{m.label}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden">
+                                <table className="w-full text-xs">
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-white/5">
+                                            <th className="text-left px-3 py-2 font-semibold text-slate-500">Metric</th>
+                                            <th className="text-center px-3 py-2 font-semibold text-amber-600 dark:text-amber-400">{labelA}</th>
+                                            <th className="text-center px-3 py-2 font-semibold text-violet-600 dark:text-violet-400">{labelB}</th>
+                                            <th className="text-center px-3 py-2 font-semibold text-slate-400">Change</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {[
+                                            {l:"FB Reach",a:statsA.fbReach,b:statsB.fbReach},
+                                            {l:"IG Reach",a:statsA.igReach,b:statsB.igReach},
+                                            {l:"FB Reactions",a:statsA.fbReactions,b:statsB.fbReactions},
+                                            {l:"IG Reactions",a:statsA.igReactions,b:statsB.igReactions},
+                                            {l:"FB Comments",a:statsA.fbComments,b:statsB.fbComments},
+                                            {l:"IG Comments",a:statsA.igComments,b:statsB.igComments},
+                                            {l:"FB Shares",a:statsA.fbShares,b:statsB.fbShares},
+                                            {l:"IG Saves",a:statsA.igSaves,b:statsB.igSaves},
+                                            {l:"Posts",a:statsA.posts,b:statsB.posts},
+                                        ].map((row,i) => {
+                                            const diff = row.a > 0 ? ((row.b - row.a) / row.a * 100) : 0;
+                                            const isPos = diff >= 0;
+                                            return (
+                                                <tr key={row.l} className={cn("border-t border-slate-100 dark:border-white/5",i%2===0?"":"bg-slate-50/50 dark:bg-white/[0.02]")}>
+                                                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{row.l}</td>
+                                                    <td className="px-3 py-2 text-center font-semibold text-amber-700 dark:text-amber-300">{fmt(row.a)}</td>
+                                                    <td className="px-3 py-2 text-center font-semibold text-violet-700 dark:text-violet-300">{fmt(row.b)}</td>
+                                                    <td className="px-3 py-2 text-center">
+                                                        <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full",isPos?"bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300":"bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400")}>{row.a===0?"+N/A":`${isPos?"+":""}${diff.toFixed(0)}%`}</span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* ── RIGHT: Charts ── */}
+                    <div className="w-[32%] flex flex-col overflow-y-auto p-4 gap-5 flex-shrink-0">
+                        {/* Post FB vs IG Bar Chart */}
+                        <div>
+                            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-3">This Post — Platform Split</h3>
+                            <div className="rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-3">
+                                <ResponsiveContainer width="100%" height={180}>
+                                    <BarChart data={postChartData} margin={{top:4,right:8,left:-16,bottom:0}}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
+                                        <XAxis dataKey="metric" tick={{fontSize:9,fill:"#94a3b8"}} />
+                                        <YAxis tick={{fontSize:9,fill:"#94a3b8"}} />
+                                        <Tooltip contentStyle={{background:"#1e1e2e",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,fontSize:11}} />
+                                        <Legend wrapperStyle={{fontSize:10}} />
+                                        <Bar dataKey="FB" fill="#1877F2" radius={[3,3,0,0]} />
+                                        <Bar dataKey="IG" fill="#E1306C" radius={[3,3,0,0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* Month Comparison Chart */}
+                        <div>
+                            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-3">Month Comparison Chart</h3>
+                            <div className="rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-3">
+                                <ResponsiveContainer width="100%" height={200}>
+                                    <BarChart data={monthChartData} margin={{top:4,right:8,left:-16,bottom:0}}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
+                                        <XAxis dataKey="metric" tick={{fontSize:9,fill:"#94a3b8"}} />
+                                        <YAxis tick={{fontSize:9,fill:"#94a3b8"}} />
+                                        <Tooltip contentStyle={{background:"#1e1e2e",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,fontSize:11}} />
+                                        <Legend wrapperStyle={{fontSize:10}} />
+                                        <Bar dataKey={labelA} fill="#f59e0b" radius={[3,3,0,0]} />
+                                        <Bar dataKey={labelB} fill="#8b5cf6" radius={[3,3,0,0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                            {/* Month summary pills */}
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                                <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/30 p-2.5">
+                                    <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase truncate">{labelA}</p>
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{fmt(statsA.fbReach+statsA.igReach)}</p>
+                                    <p className="text-[10px] text-slate-400">{statsA.posts} posts</p>
+                                </div>
+                                <div className="rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800/30 p-2.5">
+                                    <p className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 uppercase truncate">{labelB}</p>
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{fmt(statsB.fbReach+statsB.igReach)}</p>
+                                    <p className="text-[10px] text-slate-400">{statsB.posts} posts</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

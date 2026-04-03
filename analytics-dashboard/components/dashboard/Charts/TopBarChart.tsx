@@ -64,7 +64,7 @@ export function TopBarChart({ rows, schema, dateRange }: TopBarChartProps) {
 
     if (!allCategoricals.length || !numericColumns.length) {
         return (
-            <Card className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111118]">
+            <Card className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#0f0f1e]">
                 <CardContent className="p-6 flex items-center justify-center h-64">
                     <p className="text-slate-400 text-sm">No data available.</p>
                 </CardContent>
@@ -75,12 +75,15 @@ export function TopBarChart({ rows, schema, dateRange }: TopBarChartProps) {
     const data = topN(rows, groupCol, valueCol, 10, dateRange?.from, dateRange?.to);
 
     return (
-        <Card className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111118] shadow-sm">
+        <Card className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#0f0f1e] shadow-sm">
             <CardHeader className="px-6 pt-5 pb-0">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <CardTitle className="text-base font-semibold text-slate-800 dark:text-white">
-                        Top Categories
-                    </CardTitle>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <CardTitle className="text-base font-semibold text-slate-800 dark:text-white">
+                            Top Categories
+                        </CardTitle>
+                        <p className="text-xs text-slate-400 mt-0.5">Ranked by selected metric</p>
+                    </div>
                     <div className="flex gap-2">
                         <Select value={groupCol} onValueChange={setGroupCol}>
                             <SelectTrigger className="w-36 h-8 text-xs rounded-lg">
@@ -109,30 +112,32 @@ export function TopBarChart({ rows, schema, dateRange }: TopBarChartProps) {
                     </div>
                 </div>
             </CardHeader>
-            <CardContent className="px-2 pt-4 pb-4">
+            <CardContent className="px-2 pt-4 pb-2">
                 {data.length === 0 ? (
                     <div className="flex items-center justify-center h-52">
                         <p className="text-slate-400 text-sm">No data matching current filters.</p>
                     </div>
                 ) : (
-                    <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" vertical={false} />
+                    <ResponsiveContainer width="100%" height={Math.max(220, data.length * 36 + 20)}>
+                        <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 8, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" horizontal={false} />
                             <XAxis
+                                type="number"
+                                tick={{ fontSize: 11, fill: "#94a3b8" }}
+                                tickLine={false}
+                                axisLine={false}
+                                tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
+                            />
+                            <YAxis
+                                type="category"
                                 dataKey="category"
                                 tick={{ fontSize: 11, fill: "#94a3b8" }}
                                 tickLine={false}
                                 axisLine={false}
+                                width={120}
                             />
-                            <YAxis
-                                tick={{ fontSize: 11, fill: "#94a3b8" }}
-                                tickLine={false}
-                                axisLine={false}
-                                tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
-                                width={40}
-                            />
-                            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(139,92,246,0.08)" }} />
-                            <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={52}>
+                            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(139,92,246,0.06)" }} />
+                            <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={26}>
                                 {data.map((_, index) => (
                                     <Cell key={index} fill={COLORS[index % COLORS.length]} />
                                 ))}

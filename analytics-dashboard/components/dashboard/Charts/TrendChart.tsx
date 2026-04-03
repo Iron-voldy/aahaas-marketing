@@ -3,13 +3,12 @@
 import { useState } from "react";
 import {
     ResponsiveContainer,
-    LineChart,
-    Line,
+    AreaChart,
+    Area,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
-    Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -58,7 +57,7 @@ export function TrendChart({ rows, schema, dateRange }: TrendChartProps) {
 
     if (!dateColumns.length || !numericColumns.length) {
         return (
-            <Card className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111118]">
+            <Card className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#0f0f1e]">
                 <CardContent className="p-6 flex items-center justify-center h-64">
                     <p className="text-slate-400 text-sm">No date or numeric data for trend chart.</p>
                 </CardContent>
@@ -69,11 +68,14 @@ export function TrendChart({ rows, schema, dateRange }: TrendChartProps) {
     const data = timeSeries(rows, dateColumns[0], selectedMetric, "month", dateRange?.from, dateRange?.to);
 
     return (
-        <Card className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111118] shadow-sm">
+        <Card className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#0f0f1e] shadow-sm">
             <CardHeader className="px-6 pt-5 pb-0 flex flex-row items-center justify-between gap-4">
-                <CardTitle className="text-base font-semibold text-slate-800 dark:text-white">
-                    Trend Over Time
-                </CardTitle>
+                <div>
+                    <CardTitle className="text-base font-semibold text-slate-800 dark:text-white">
+                        Trend Over Time
+                    </CardTitle>
+                    <p className="text-xs text-slate-400 mt-0.5">Monthly progression of selected metric</p>
+                </div>
                 <Select value={selectedMetric} onValueChange={setSelectedMetric}>
                     <SelectTrigger className="w-44 h-8 text-xs rounded-lg">
                         <SelectValue />
@@ -93,9 +95,15 @@ export function TrendChart({ rows, schema, dateRange }: TrendChartProps) {
                         <p className="text-slate-400 text-sm">No data available for selected metric.</p>
                     </div>
                 ) : (
-                    <ResponsiveContainer width="100%" height={240}>
-                        <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
+                    <ResponsiveContainer width="100%" height={260}>
+                        <AreaChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                            <defs>
+                                <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={false} />
                             <XAxis
                                 dataKey="date"
                                 tick={{ fontSize: 11, fill: "#94a3b8" }}
@@ -106,20 +114,21 @@ export function TrendChart({ rows, schema, dateRange }: TrendChartProps) {
                                 tick={{ fontSize: 11, fill: "#94a3b8" }}
                                 tickLine={false}
                                 axisLine={false}
-                                tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
+                                tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
                                 width={40}
                             />
-                            <Tooltip content={<CustomTooltip />} />
-                            <Line
+                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: "rgba(139,92,246,0.3)", strokeWidth: 1, strokeDasharray: "4 2" }} />
+                            <Area
                                 type="monotone"
                                 dataKey="value"
                                 name={selectedMetric.replace(/_/g, " ")}
-                                stroke={COLORS[0]}
+                                stroke="#8b5cf6"
                                 strokeWidth={2.5}
-                                dot={{ fill: COLORS[0], r: 4, strokeWidth: 0 }}
-                                activeDot={{ r: 6, strokeWidth: 0 }}
+                                fill="url(#trendGradient)"
+                                dot={false}
+                                activeDot={{ r: 5, fill: "#8b5cf6", stroke: "#c4b5fd", strokeWidth: 2 }}
                             />
-                        </LineChart>
+                        </AreaChart>
                     </ResponsiveContainer>
                 )}
             </CardContent>

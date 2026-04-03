@@ -36,42 +36,45 @@ function KpiCardItem({ card, index }: { card: KpiCardType; index: number }) {
     const icon = getIcon(card.icon);
 
     return (
-        <Card className="border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111118] shadow-sm hover:shadow-md transition-shadow duration-300 rounded-2xl overflow-hidden">
-            <CardContent className="p-5">
+        <div className={cn(
+            "relative overflow-hidden rounded-2xl border transition-all duration-300 group cursor-default",
+            "bg-white dark:bg-[#0f0f1e]",
+            "border-slate-200 dark:border-white/8",
+            "hover:border-slate-300 dark:hover:border-white/15",
+            "shadow-sm hover:shadow-md dark:hover:shadow-[0_4px_20px_rgba(0,0,0,0.4)]",
+        )}>
+            {/* Gradient top accent line */}
+            <div className={cn("absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r", color.gradient)} />
+            <div className="relative p-5">
                 <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">
+                        <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">
                             {card.label}
                         </p>
-                        <p className="text-2xl font-bold text-slate-900 dark:text-white truncate">
-                            {card.prefix && <span className="text-lg">{card.prefix}</span>}
+                        <p className="text-2xl font-extrabold text-slate-900 dark:text-white truncate leading-none">
+                            {card.prefix && <span className="text-lg font-bold">{card.prefix}</span>}
                             {card.value}
                             {card.suffix && (
-                                <span className="text-base text-slate-500 dark:text-slate-400 font-normal ml-1">
+                                <span className="text-sm text-slate-500 dark:text-slate-400 font-normal ml-1">
                                     {card.suffix}
                                 </span>
                             )}
                         </p>
                     </div>
-                    {/* Icon badge — FB/IG logos are already colored, others get gradient bg */}
-                    <div
-                        className={cn(
-                            "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg",
-                            card.icon === "facebook" || card.icon === "instagram"
-                                ? "" // logos carry their own colors, just show them raw on a subtle bg
-                                : `bg-gradient-to-br ${color.gradient} ${color.shadow}`,
-                            (card.icon === "facebook")
-                                ? "bg-[#1877F2]/10 dark:bg-[#1877F2]/20"
-                                : (card.icon === "instagram")
-                                    ? "bg-pink-500/10 dark:bg-pink-500/20"
-                                    : ""
-                        )}
-                    >
+                    <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg",
+                        card.icon === "facebook" || card.icon === "instagram"
+                            ? ""
+                            : `bg-gradient-to-br ${color.gradient} ${color.shadow}`,
+                        card.icon === "facebook" ? "bg-[#1877F2]/10 dark:bg-[#1877F2]/20"
+                            : card.icon === "instagram" ? "bg-pink-500/10 dark:bg-pink-500/20"
+                            : ""
+                    )}>
                         {icon}
                     </div>
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 }
 

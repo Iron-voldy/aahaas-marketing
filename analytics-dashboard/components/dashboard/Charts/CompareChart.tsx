@@ -3,8 +3,8 @@
 import { useState } from "react";
 import {
     ResponsiveContainer,
-    LineChart,
-    Line,
+    AreaChart,
+    Area,
     XAxis,
     YAxis,
     CartesianGrid,
@@ -65,7 +65,7 @@ export function CompareChart({ rows, schema, dateRange }: CompareChartProps) {
 
     if (!dateColumns.length || !allCategoricals.length) {
         return (
-            <Card className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111118]">
+            <Card className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#0f0f1e]">
                 <CardContent className="p-6 flex items-center justify-center h-64">
                     <p className="text-slate-400 text-sm">Date or categorical data required for comparison.</p>
                 </CardContent>
@@ -79,12 +79,15 @@ export function CompareChart({ rows, schema, dateRange }: CompareChartProps) {
         : [];
 
     return (
-        <Card className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111118] shadow-sm">
+        <Card className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#0f0f1e] shadow-sm">
             <CardHeader className="px-6 pt-5 pb-0">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <CardTitle className="text-base font-semibold text-slate-800 dark:text-white">
-                        Compare by Category
-                    </CardTitle>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <CardTitle className="text-base font-semibold text-slate-800 dark:text-white">
+                            Compare by Category
+                        </CardTitle>
+                        <p className="text-xs text-slate-400 mt-0.5">Top categories over time</p>
+                    </div>
                     <div className="flex gap-2">
                         <Select value={catCol} onValueChange={setCatCol}>
                             <SelectTrigger className="w-36 h-8 text-xs rounded-lg">
@@ -119,9 +122,17 @@ export function CompareChart({ rows, schema, dateRange }: CompareChartProps) {
                         <p className="text-slate-400 text-sm">No data for comparison.</p>
                     </div>
                 ) : (
-                    <ResponsiveContainer width="100%" height={240}>
-                        <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
+                    <ResponsiveContainer width="100%" height={260}>
+                        <AreaChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                            <defs>
+                                {categories.map((cat, i) => (
+                                    <linearGradient key={cat} id={`cmpGrad${i}`} x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0.22} />
+                                        <stop offset="95%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0} />
+                                    </linearGradient>
+                                ))}
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={false} />
                             <XAxis
                                 dataKey="date"
                                 tick={{ fontSize: 11, fill: "#94a3b8" }}
@@ -132,25 +143,24 @@ export function CompareChart({ rows, schema, dateRange }: CompareChartProps) {
                                 tick={{ fontSize: 11, fill: "#94a3b8" }}
                                 tickLine={false}
                                 axisLine={false}
-                                tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
+                                tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
                                 width={40}
                             />
                             <Tooltip content={<CustomTooltip />} />
-                            <Legend
-                                wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
-                            />
+                            <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
                             {categories.map((cat, i) => (
-                                <Line
+                                <Area
                                     key={cat}
                                     type="monotone"
                                     dataKey={cat}
                                     stroke={COLORS[i % COLORS.length]}
+                                    fill={`url(#cmpGrad${i})`}
                                     strokeWidth={2}
-                                    dot={{ fill: COLORS[i % COLORS.length], r: 3, strokeWidth: 0 }}
-                                    activeDot={{ r: 5, strokeWidth: 0 }}
+                                    dot={false}
+                                    activeDot={{ r: 4, strokeWidth: 0 }}
                                 />
                             ))}
-                        </LineChart>
+                        </AreaChart>
                     </ResponsiveContainer>
                 )}
             </CardContent>

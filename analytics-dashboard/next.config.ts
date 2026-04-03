@@ -6,13 +6,21 @@ const nextConfig: NextConfig = {
     root: path.resolve(__dirname),
   },
   images: {
+    // Allow ALL remote image sources (Firebase, Facebook CDN, Instagram CDN, etc.)
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "firebasestorage.googleapis.com",
+        hostname: "**",
+        pathname: "**",
+      },
+      {
+        protocol: "http",
+        hostname: "**",
         pathname: "**",
       },
     ],
+    // Disable image optimization for external URLs to avoid domain restrictions
+    unoptimized: false,
   },
 };
 

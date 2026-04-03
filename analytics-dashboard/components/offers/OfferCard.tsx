@@ -4,13 +4,21 @@ import Image from "next/image";
 import { useState } from "react";
 import {
     Sparkles, TrendingUp, Calendar, Eye, Edit2, Trash2,
-    Tag, Clock, ExternalLink
+    Tag, Clock, ExternalLink, Download, FileSpreadsheet, FileText
 } from "lucide-react";
 import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { shouldBypassNextImageOptimization, getFacebookEmbedUrl, getInstagramEmbedUrl } from "@/lib/image";
 import { cn } from "@/lib/utils";
 import type { SeasonalOffer } from "@/lib/db";
+import { exportRecordToPdf, exportRecordToXlsx } from "@/lib/exporters";
 
 // Per-category colour palette & emoji
 const CATEGORY_THEMES: Record<string, { gradient: string; bg: string; accent: string; emoji: string; badgeClass: string }> = {
@@ -89,6 +97,24 @@ export function OfferCard({ offer, onViewDetail, onEdit, onDelete }: OfferCardPr
     const combinedReach = offer.combinedReach ?? ((offer.fbReach ?? 0) + (offer.igReach ?? 0));
     const hasSocialStats = !!(offer.fbReach || offer.igReach);
     const postUrl = (offer.postUrl as string) || "";
+    // Iframe embed fallback when no cover image
+    const fbEmbed = !showRealImage ? getFacebookEmbedUrl(postUrl) : null;
+    const igEmbed = !showRealImage && !fbEmbed ? getInstagramEmbedUrl(postUrl) : null;
+    const embedUrl = fbEmbed || igEmbed;
+
+    const offerName = offer.name || "seasonal-offer";
+    const exportData: Record<string, unknown> = {
+        ...offer,
+        postUrl,
+    };
+
+    const handleExportXlsx = () => {
+        exportRecordToXlsx(`offer-${offerName}`, exportData, "Offer");
+    };
+
+    const handleExportPdf = async () => {
+        await exportRecordToPdf(`offer-${offerName}`, `Seasonal Offer Report: ${offerName}`, exportData);
+    };
 
     return (
         <div
@@ -112,9 +138,19 @@ export function OfferCard({ offer, onViewDetail, onEdit, onDelete }: OfferCardPr
                         src={primaryImage}
                         alt={offer.name}
                         fill
+                        unoptimized={shouldBypassNextImageOptimization(primaryImage)}
                         className="object-cover transition-transform duration-500 group-hover:scale-105"
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                         onError={() => setImgError(true)}
+                    />
+                ) : embedUrl ? (
+                    <iframe
+                        src={embedUrl}
+                        className="absolute inset-0 w-full h-full border-0"
+                        loading="lazy"
+                        allowFullScreen
+                        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
+                        title={`${offer.name} post embed`}
                     />
                 ) : (
                     <div
@@ -143,8 +179,32 @@ export function OfferCard({ offer, onViewDetail, onEdit, onDelete }: OfferCardPr
                     </div>
                 )}
 
-                {/* Category badge */}
-                <div className="absolute top-2 left-2 z-10">
+                {/* Category + export controls */}
+                <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-7 px-2 rounded-lg bg-slate-900/80 hover:bg-slate-900 text-white border border-white/15"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <Download className="w-3.5 h-3.5 mr-1" />
+                                Export
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem onClick={handleExportXlsx}>
+                                <FileSpreadsheet className="w-4 h-4" />
+                                Export XLSX
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { void handleExportPdf(); }}>
+                                <FileText className="w-4 h-4" />
+                                Export PDF
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
                     <Badge className={cn("text-[10px] border-0 shadow-lg rounded-full px-2 py-0.5 font-semibold", theme.badgeClass)}>
                         {theme.emoji} {offer.category}
                     </Badge>

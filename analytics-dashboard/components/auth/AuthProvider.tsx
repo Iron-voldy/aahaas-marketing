@@ -28,6 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
     const router = useRouter();
     const pathname = usePathname();
+    const isPublicRoute = pathname === "/login" || pathname === "/register";
 
     useEffect(() => {
         fetch("/api/auth/me", { credentials: "include" })
@@ -44,7 +45,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (loading) return;
-        const isPublicRoute = pathname === "/login" || pathname === "/register";
         if (!user && !isPublicRoute) router.push("/login");
         else if (user && isPublicRoute) router.push("/dashboard");
     }, [user, loading, pathname, router]);
@@ -58,6 +58,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error("Logout failed", error);
         }
     };
+
+    // Avoid rendering protected children before auth state settles,
+    // which prevents eager client fetches from hitting protected APIs unauthenticated.
+    if (loading) {
+        return null;
+    }
+
+    if (!user && !isPublicRoute) {
+        return null;
+    }
+
+    if (user && isPublicRoute) {
+        return null;
+    }
 
     return (
         <AuthContext.Provider value={{ user, loading, setUser, logout }}>

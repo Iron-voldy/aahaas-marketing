@@ -49,6 +49,27 @@
     color: var(--text-primary) !important;
   }
 
+  /* Force dark dropdown surfaces in dark theme (Radix + native selects) */
+  .dark [data-slot="select-content"],
+  .dark [data-slot="dropdown-menu-content"],
+  .dark [data-slot="dropdown-menu-sub-content"] {
+    background-color: #0f172a !important;
+    color: #e2e8f0 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  .dark select {
+    color-scheme: dark;
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #e2e8f0;
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .dark select option {
+    background-color: #0f172a;
+    color: #e2e8f0;
+  }
+
   /* Scrollbar styling */
   ::-webkit-scrollbar {
     width: 5px;

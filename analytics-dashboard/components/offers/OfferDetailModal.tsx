@@ -5,6 +5,7 @@ import { X, TrendingUp, Tag, Clock, Calendar, Sparkles, Users, DollarSign, Exter
 import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { shouldBypassNextImageOptimization } from "@/lib/image";
 import { cn } from "@/lib/utils";
 import type { SeasonalOffer } from "@/lib/db";
 
@@ -74,12 +75,24 @@ export function OfferDetailModal({ offer, open, onClose }: OfferDetailModalProps
                         <div className="absolute inset-0 overflow-x-auto overflow-y-hidden flex snap-x snap-mandatory hide-scrollbar">
                             {offer.imageUrls.map((url, i) => (
                                 <div key={url} className="relative w-full h-full flex-shrink-0 snap-center">
-                                    <Image src={url} alt={`${offer.name} ${i + 1}`} fill className="object-cover" />
+                                    <Image
+                                        src={url}
+                                        alt={`${offer.name} ${i + 1}`}
+                                        fill
+                                        unoptimized={shouldBypassNextImageOptimization(url)}
+                                        className="object-cover"
+                                    />
                                 </div>
                             ))}
                         </div>
                     ) : offer.imageUrl ? (
-                        <Image src={offer.imageUrl} alt={offer.name} fill className="object-cover" />
+                        <Image
+                            src={offer.imageUrl}
+                            alt={offer.name}
+                            fill
+                            unoptimized={shouldBypassNextImageOptimization(offer.imageUrl)}
+                            className="object-cover"
+                        />
                     ) : null}
 
                     {/* Overlay Gradient */}

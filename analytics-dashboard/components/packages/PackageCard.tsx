@@ -2,12 +2,20 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { Check, Eye, TrendingUp, MapPin, Calendar, Users, AlertCircle, Edit2, ExternalLink, Trash2 } from "lucide-react";
+import { Check, Eye, TrendingUp, MapPin, Calendar, Users, Edit2, ExternalLink, Trash2, Play, FileSpreadsheet, FileText, Download } from "lucide-react";
 import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { shouldBypassNextImageOptimization, getFacebookEmbedUrl, getInstagramEmbedUrl } from "@/lib/image";
 import { cn } from "@/lib/utils";
 import type { Row } from "@/lib/types";
+import { exportRecordToPdf, exportRecordToXlsx } from "@/lib/exporters";
 
 // Destination gradients & emoji for fallback
 const DESTINATION_THEMES: Record<
@@ -100,12 +108,34 @@ export function PackageCard({
     const destination = String(row["Destination"] || row["destination"] || row["Country"] || row["country"] || "");
     const datePublished = String(row["Date Published"] || row["date_published"] || "");
     const postUrl = String(row["postUrl"] || row["fb_permalink"] || row["ig_permalink"] || "");
+    const fbPermalink = String(row["fb_permalink"] || "");
+    const igPermalink = String(row["ig_permalink"] || "");
     // Use destination for theme; if blank try packageName itself
     const theme = getTheme(destination || packageName);
     const stats = getStats(row, dateRange);
     const shortDate = datePublished.split(",")[0].trim();
     const showRealImage = !!imagePath && !imgError;
     const isRange = dateRange && dateRange.from !== dateRange.to;
+    // Iframe embed URL for posts without cover images
+    const fbEmbed = !showRealImage ? getFacebookEmbedUrl(fbPermalink || postUrl) : null;
+    const igEmbed = !showRealImage && !fbEmbed ? getInstagramEmbedUrl(igPermalink || postUrl) : null;
+    const embedUrl = fbEmbed || igEmbed;
+
+    const exportData: Record<string, unknown> = {
+        package: packageName,
+        destination,
+        datePublished,
+        postUrl,
+        ...row,
+    };
+
+    const handleExportXlsx = () => {
+        exportRecordToXlsx(`package-${packageName}`, exportData, "Package");
+    };
+
+    const handleExportPdf = async () => {
+        await exportRecordToPdf(`package-${packageName}`, `Package Report: ${packageName}`, exportData);
+    };
 
     return (
         <div
@@ -131,9 +161,19 @@ export function PackageCard({
                         src={imagePath!}
                         alt={`${packageName} package flyer`}
                         fill
+                        unoptimized={shouldBypassNextImageOptimization(imagePath)}
                         className="object-cover transition-transform duration-500 hover:scale-105"
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                         onError={() => setImgError(true)}
+                    />
+                ) : embedUrl ? (
+                    <iframe
+                        src={embedUrl}
+                        className="absolute inset-0 w-full h-full border-0"
+                        loading="lazy"
+                        allowFullScreen
+                        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
+                        title={`${packageName} post embed`}
                     />
                 ) : (
                     <div
@@ -162,14 +202,38 @@ export function PackageCard({
                     </div>
                 )}
 
-                {/* Paid badge */}
-                {stats.isPaid && (
-                    <div className="absolute top-2 left-2 z-10">
+                <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-7 px-2 rounded-lg bg-slate-900/80 hover:bg-slate-900 text-white border border-white/15"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <Download className="w-3.5 h-3.5 mr-1" />
+                                Export
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem onClick={handleExportXlsx}>
+                                <FileSpreadsheet className="w-4 h-4" />
+                                Export XLSX
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { void handleExportPdf(); }}>
+                                <FileText className="w-4 h-4" />
+                                Export PDF
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Paid badge */}
+                    {stats.isPaid && (
                         <Badge className="text-[10px] bg-amber-500 text-white border-0 shadow-lg rounded-full px-2 py-0.5 font-semibold">
                             🎯 Paid
                         </Badge>
-                    </div>
-                )}
+                    )}
+                </div>
 
                 {/* Package number badge */}
                 <div className="absolute top-2 right-2 z-10">
