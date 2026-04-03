@@ -15,9 +15,9 @@ import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 const ChartPlaceholder = () => <div className="h-72 rounded-2xl bg-slate-100 dark:bg-white/5 animate-pulse" />;
 
 const TrendChart = dynamic(() => import("@/components/dashboard/Charts/TrendChart").then(m => m.TrendChart), { ssr: false, loading: ChartPlaceholder });
-const TopBarChart = dynamic(() => import("@/components/dashboard/Charts/TopBarChart").then(m => m.TopBarChart), { ssr: false, loading: ChartPlaceholder });
-const DonutChart = dynamic(() => import("@/components/dashboard/Charts/DonutChart").then(m => m.DonutChart), { ssr: false, loading: ChartPlaceholder });
-const CompareChart = dynamic(() => import("@/components/dashboard/Charts/CompareChart").then(m => m.CompareChart), { ssr: false, loading: ChartPlaceholder });
+const TopPackagesChart = dynamic(() => import("@/components/dashboard/Charts/TopRankingsCharts").then(m => m.TopPackagesChart), { ssr: false, loading: ChartPlaceholder });
+const TopDestinationsChart = dynamic(() => import("@/components/dashboard/Charts/TopRankingsCharts").then(m => m.TopDestinationsChart), { ssr: false, loading: ChartPlaceholder });
+const FbIgCompareChart = dynamic(() => import("@/components/dashboard/Charts/FbIgCompareChart").then(m => m.FbIgCompareChart), { ssr: false, loading: ChartPlaceholder });
 
 export function DashboardClient() {
     const [rows, setRows] = useState<Row[]>([]);
@@ -162,30 +162,37 @@ export function DashboardClient() {
                     <KpiCards cards={kpis} />
                 </div>
 
-                {/* Charts - first row */}
+                {/* Charts - Trend */}
                 <div>
                     <div className="flex items-center gap-2 mb-3">
                         <TrendingUp className="w-4 h-4 text-violet-400" />
-                        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Trends & Distribution</h2>
+                        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Reach & Engagement Trends</h2>
                         <div className="flex-1 h-px bg-gradient-to-r from-slate-200 dark:from-white/8 to-transparent" />
                     </div>
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                        <TrendChart rows={filteredRows} schema={schema} dateRange={filters.dateRange} />
-                        <DonutChart rows={filteredRows} schema={schema} dateRange={filters.dateRange} />
-                    </div>
+                    <TrendChart rows={filteredRows} schema={schema} dateRange={filters.dateRange} />
                 </div>
 
-                {/* Charts - second row */}
+                {/* Charts - Top Rankings */}
                 <div>
                     <div className="flex items-center gap-2 mb-3">
                         <Activity className="w-4 h-4 text-violet-400" />
-                        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Rankings & Comparisons</h2>
+                        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Top Rankings by Reach</h2>
                         <div className="flex-1 h-px bg-gradient-to-r from-slate-200 dark:from-white/8 to-transparent" />
                     </div>
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                        <TopBarChart rows={filteredRows} schema={schema} dateRange={filters.dateRange} />
-                        <CompareChart rows={filteredRows} schema={schema} dateRange={filters.dateRange} />
+                        <TopPackagesChart rows={filteredRows} schema={schema} dateRange={filters.dateRange} />
+                        <TopDestinationsChart rows={filteredRows} schema={schema} dateRange={filters.dateRange} />
                     </div>
+                </div>
+
+                {/* Charts - FB vs IG Engagement */}
+                <div>
+                    <div className="flex items-center gap-2 mb-3">
+                        <Activity className="w-4 h-4 text-violet-400" />
+                        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Facebook vs Instagram Engagement</h2>
+                        <div className="flex-1 h-px bg-gradient-to-r from-slate-200 dark:from-white/8 to-transparent" />
+                    </div>
+                    <FbIgCompareChart rows={filteredRows} schema={schema} dateRange={filters.dateRange} />
                 </div>
             </div>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingUp, BarChart2, DollarSign, MessageCircle, Package, Users } from "lucide-react";
+import { TrendingUp, BarChart2, DollarSign, MessageCircle, Package, Users, MapPin } from "lucide-react";
 import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +16,7 @@ function getIcon(iconName: string | undefined): React.ReactNode {
         case "dollar-sign": return <DollarSign className="w-5 h-5 text-white" />;
         case "message-circle": return <MessageCircle className="w-5 h-5 text-white" />;
         case "package": return <Package className="w-5 h-5 text-white" />;
+        case "map-pin": return <MapPin className="w-5 h-5 text-white" />;
         case "users": return <Users className="w-5 h-5 text-white" />;
         default: return <TrendingUp className="w-5 h-5 text-white" />;
     }
@@ -29,6 +30,8 @@ const colorClasses = [
     { gradient: "from-amber-500 to-orange-600", shadow: "shadow-amber-500/20", bg: "bg-amber-500" },
     { gradient: "from-emerald-500 to-teal-600", shadow: "shadow-emerald-500/20", bg: "bg-emerald-500" },
     { gradient: "from-indigo-500 to-violet-600", shadow: "shadow-indigo-500/20", bg: "bg-indigo-500" },
+    { gradient: "from-cyan-500 to-blue-600", shadow: "shadow-cyan-500/20", bg: "bg-cyan-500" },
+    { gradient: "from-rose-500 to-red-600", shadow: "shadow-rose-500/20", bg: "bg-rose-500" },
 ];
 
 function KpiCardItem({ card, index }: { card: KpiCardType; index: number }) {
@@ -80,7 +83,7 @@ function KpiCardItem({ card, index }: { card: KpiCardType; index: number }) {
 
 export function KpiCards({ cards }: { cards: KpiCardType[] }) {
     return (
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {cards.map((card, i) => (
                 <KpiCardItem key={card.label} card={card} index={i} />
             ))}

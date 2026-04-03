@@ -101,24 +101,34 @@ export function timeSeries(
 
     for (const row of rows) {
         const history = row.history as Record<string, Record<string, string | number>> | undefined;
+        const historyDates = history ? Object.keys(history).sort() : [];
         
-        if (history) {
-            const dates = Object.keys(history).sort();
-            for (let i = 0; i < dates.length; i++) {
-                const dateStr = dates[i];
+        // Use history deltas only when there are multiple snapshots
+        if (history && historyDates.length > 1) {
+            for (let i = 0; i < historyDates.length; i++) {
+                const dateStr = historyDates[i];
                 if ((from && dateStr < from) || (to && dateStr > to)) continue;
                 
                 const parsedDate = new Date(dateStr);
                 const bucket = dateBucket(parsedDate, granularity);
                 
                 const currentVal = Number(history[dateStr][valueCol]) || 0;
-                const prevVal = i > 0 ? (Number(history[dates[i - 1]][valueCol]) || 0) : 0;
+                const prevVal = i > 0 ? (Number(history[historyDates[i - 1]][valueCol]) || 0) : 0;
                 const delta = currentVal - prevVal;
                 
                 buckets.set(bucket, (buckets.get(bucket) ?? 0) + delta);
             }
         } else {
-            // Legacy fallback
+            // Single snapshot or no history: bucket by date_published / dateCol
+            // Use the latest snapshot value or the raw row value
+            let val = 0;
+            if (history && historyDates.length === 1) {
+                val = Number(history[historyDates[0]][valueCol]) || 0;
+            } else {
+                val = typeof row[valueCol] === "number" ? (row[valueCol] as number) : (Number(row[valueCol]) || 0);
+            }
+            if (val === 0) continue;
+
             const rawDate = row[dateCol];
             if (!rawDate) continue;
             const parsedDate = parseFlexibleDate(rawDate);
@@ -128,7 +138,6 @@ export function timeSeries(
             if ((from && dateStr < from) || (to && dateStr > to)) continue;
 
             const bucket = dateBucket(parsedDate, granularity);
-            const val = typeof row[valueCol] === "number" ? (row[valueCol] as number) : 0;
             buckets.set(bucket, (buckets.get(bucket) ?? 0) + val);
         }
     }
@@ -164,11 +173,12 @@ export function timeSeriesByCategory(
         if (!catTotals.includes(cat)) continue;
 
         const history = row.history as Record<string, Record<string, string | number>> | undefined;
+        const historyDates = history ? Object.keys(history).sort() : [];
         
-        if (history) {
-            const dates = Object.keys(history).sort();
-            for (let i = 0; i < dates.length; i++) {
-                const dateStr = dates[i];
+        // Use history deltas only when there are multiple snapshots
+        if (history && historyDates.length > 1) {
+            for (let i = 0; i < historyDates.length; i++) {
+                const dateStr = historyDates[i];
                 if ((from && dateStr < from) || (to && dateStr > to)) continue;
 
                 const parsedDate = new Date(dateStr);
@@ -178,13 +188,21 @@ export function timeSeriesByCategory(
                 const b = buckets.get(bucket)!;
 
                 const currentVal = Number(history[dateStr][valueCol]) || 0;
-                const prevVal = i > 0 ? (Number(history[dates[i - 1]][valueCol]) || 0) : 0;
+                const prevVal = i > 0 ? (Number(history[historyDates[i - 1]][valueCol]) || 0) : 0;
                 const delta = currentVal - prevVal;
 
                 b[cat] = (b[cat] ?? 0) + delta;
             }
         } else {
-            // Legacy fallback
+            // Single snapshot or no history: bucket by date_published / dateCol
+            let val = 0;
+            if (history && historyDates.length === 1) {
+                val = Number(history[historyDates[0]][valueCol]) || 0;
+            } else {
+                val = typeof row[valueCol] === "number" ? (row[valueCol] as number) : (Number(row[valueCol]) || 0);
+            }
+            if (val === 0) continue;
+
             const rawDate = row[dateCol];
             if (!rawDate) continue;
             const parsedDate = parseFlexibleDate(rawDate);
@@ -196,7 +214,6 @@ export function timeSeriesByCategory(
             const bucket = dateBucket(parsedDate, granularity);
             if (!buckets.has(bucket)) buckets.set(bucket, {});
             const b = buckets.get(bucket)!;
-            const val = typeof row[valueCol] === "number" ? (row[valueCol] as number) : 0;
             b[cat] = (b[cat] ?? 0) + val;
         }
     }
@@ -276,138 +293,165 @@ export function detectOutliers(rows: Row[], col: string): OutlierResult[] {
 // ─── KPI Computation ─────────────────────────────────────────────────────────
 export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows: Row[] = [], dateRange: { from: string; to: string } | null = null): KpiCard[] {
     const kpis: KpiCard[] = [];
-    const { numericColumns, dateColumns, categoricalColumns } = schema;
+    const { numericColumns, categoricalColumns, allColumns } = schema;
+    const rows = filteredRows;
+    const from = dateRange?.from;
+    const to = dateRange?.to;
 
+    // Helper: find a column (numeric first, then any) — comparisons are case-insensitive
+    const findCol = (...patterns: ((lc: string) => boolean)[]): string | undefined => {
+        for (const pred of patterns) {
+            const found = numericColumns.find(c => pred(c.toLowerCase()))
+                ?? allColumns.find(c => pred(c.toLowerCase()));
+            if (found) return found;
+        }
+        return undefined;
+    };
+
+    // ── 1. Total Packages ──
     kpis.push({
         label: "Total Packages",
-        value: (allRows.length > 0 ? allRows.length : filteredRows.length).toLocaleString(),
+        value: (allRows.length > 0 ? allRows.length : rows.length).toLocaleString(),
         icon: "package",
     });
 
-    // Count specifically published packages in this range
-    let publishedCount = filteredRows.length;
-    if (dateRange && dateColumns.length > 0) {
-        const from = new Date(dateRange.from + "T00:00:00");
-        const to = new Date(dateRange.to + "T23:59:59.999");
-        const pubDateCols = dateColumns.filter(c => 
-            c.toLowerCase().includes("published") || 
-            c.toLowerCase() === "date"
-        );
-        
-        if (pubDateCols.length > 0) {
-            publishedCount = allRows.filter(row => {
-                for (const col of pubDateCols) {
-                    const d = parseFlexibleDate(row[col]);
-                    if (d && d >= from && d <= to) return true;
-                }
-                return false;
-            }).length;
-        }
-    }
+    // ── Column detection (case-insensitive, supports both snake_case and spaced names) ──
+    const fbReachCol = findCol(
+        c => c === "fb_reach" || c === "fb reach",
+        c => c.startsWith("fb") && c.includes("reach"),
+    );
+    const igReachCol = findCol(
+        c => c === "ig_reach" || c === "ig reach",
+        c => c.startsWith("ig") && c.includes("reach"),
+    );
+    const reachCol = findCol(
+        c => c === "total_reach" || c === "combined reach" || c === "combined_reach",
+        c => (c.includes("total") || c.includes("combined")) && c.includes("reach"),
+    );
+    const spendCol = findCol(
+        c => c === "ads_spend" || c === "spend $" || c === "ads spend",
+        c => c.includes("spend"),
+    );
+    const clicksCol = findCol(
+        c => c === "fb_total_clicks" || c === "fb total clicks",
+        c => c === "fb_link_clicks" || c === "fb link clicks",
+        c => c.includes("total") && c.includes("click"),
+        c => c.includes("link") && c.includes("click"),
+    );
+    const reactionsCol = findCol(
+        c => c === "total_reactions" || c === "total reactions",
+        c => c.includes("total") && c.includes("reaction"),
+        c => c.includes("combined") && c.includes("interact"),
+        c => c.includes("reaction"),
+    );
+    const commentsCol = findCol(
+        c => c === "total_comments" || c === "total comments",
+        c => c.includes("total") && c.includes("comment"),
+        c => c.includes("comment"),
+    );
+    const sharesCol = findCol(
+        c => c === "total_shares" || c === "total shares",
+        c => c.includes("total") && c.includes("share"),
+        c => !c.includes("reaction") && !c.includes("comment") && c.includes("share"),
+    );
 
-    kpis.push({
-        label: "Packages Published",
-        value: publishedCount.toLocaleString(),
-        icon: "trending-up",
-    });
-
-    const rows = filteredRows;
-
-    // Find reach-related columns (total reach first)
-    const reachCol = numericColumns.find((c) => (c.includes("total") && c.includes("reach")) || c === "Combined Reach");
-    const fbReachCol = numericColumns.find((c) => (c.startsWith("fb_") && c.includes("reach")) || c === "FB Reach");
-    const igReachCol = numericColumns.find((c) => (c.startsWith("ig_") && c.includes("reach")) || c === "IG Reach");
-    const spendCol = numericColumns.find((c) => c.includes("spend") || c === "Amount Spent (USD)");
-    const convCol = numericColumns.find((c) => c.includes("conversation") || c === "FB + IG Messaging Conversations Started");
-    const clicksCol = numericColumns.find((c) => c.includes("total_clicks") || (c.includes("fb") && c.includes("click")) || c === "FB Total Clicks");
-
+    // ── 2. Combined Reach ──
     if (reachCol) {
         kpis.push({
-            label: "Total Combined Reach",
-            value: sumColumn(rows, reachCol, dateRange?.from, dateRange?.to).toLocaleString(),
+            label: "Combined Reach",
+            value: sumColumn(rows, reachCol, from, to).toLocaleString(),
             icon: "trending-up",
-            prefix: "",
         });
-    } else if (fbReachCol && igReachCol) {
-        const totalReach = sumColumn(rows, fbReachCol, dateRange?.from, dateRange?.to) + 
-                          sumColumn(rows, igReachCol, dateRange?.from, dateRange?.to);
+    } else if (fbReachCol) {
+        const total = sumColumn(rows, fbReachCol, from, to)
+            + (igReachCol ? sumColumn(rows, igReachCol, from, to) : 0);
         kpis.push({
-            label: "Total Combined Reach",
-            value: totalReach.toLocaleString(),
+            label: "Combined Reach",
+            value: total.toLocaleString(),
             icon: "trending-up",
         });
     }
 
+    // ── 3. Facebook Reach ──
     if (fbReachCol) {
         kpis.push({
             label: "Facebook Reach",
-            value: sumColumn(rows, fbReachCol, dateRange?.from, dateRange?.to).toLocaleString(),
+            value: sumColumn(rows, fbReachCol, from, to).toLocaleString(),
             icon: "facebook",
         });
     }
 
+    // ── 4. Instagram Reach ──
     if (igReachCol) {
         kpis.push({
             label: "Instagram Reach",
-            value: sumColumn(rows, igReachCol, dateRange?.from, dateRange?.to).toLocaleString(),
+            value: sumColumn(rows, igReachCol, from, to).toLocaleString(),
             icon: "instagram",
         });
     }
 
+    // ── 5. Total Engagement (reactions + comments + shares, or combined interactions) ──
+    {
+        const combinedInteractCol = findCol(
+            c => c === "combined total interactions" || c === "combined_total_interactions",
+            c => c.includes("combined") && c.includes("interact"),
+        );
+        const engCols = [reactionsCol, commentsCol, sharesCol].filter(Boolean) as string[];
+        if (combinedInteractCol) {
+            kpis.push({
+                label: "Total Engagement",
+                value: sumColumn(rows, combinedInteractCol, from, to).toLocaleString(),
+                icon: "bar-chart-2",
+            });
+        } else if (engCols.length > 0) {
+            const total = engCols.reduce((acc, col) => acc + sumColumn(rows, col, from, to), 0);
+            kpis.push({
+                label: "Total Engagement",
+                value: total.toLocaleString(),
+                icon: "bar-chart-2",
+            });
+        }
+    }
+
+    // ── 6. Total Clicks ──
+    if (clicksCol) {
+        kpis.push({
+            label: "Link Clicks",
+            value: sumColumn(rows, clicksCol, from, to).toLocaleString(),
+            icon: "trending-up",
+        });
+    }
+
+    // ── 7. Ad Spend ──
     if (spendCol) {
         kpis.push({
-            label: "Total Ad Spend",
-            value: sumColumn(rows, spendCol, dateRange?.from, dateRange?.to).toFixed(2),
+            label: "Ad Spend",
+            value: sumColumn(rows, spendCol, from, to).toFixed(2),
             prefix: "$",
             icon: "dollar-sign",
         });
     }
 
-    if (convCol) {
-        kpis.push({
-            label: "Ad Conversations",
-            value: sumColumn(rows, convCol, dateRange?.from, dateRange?.to).toLocaleString(),
-            icon: "message-circle",
-        });
-    }
-
-    // Top destination by total reach
-    const countryCol = categoricalColumns.find((c) => c === "Destination" || c.includes("country") || c === "Package" || c === "package");
-    if (countryCol && reachCol) {
+    // ── 8. Top Destination ──
+    const countryCol = [...categoricalColumns, ...allColumns].find(c => {
+        const lc = c.toLowerCase();
+        return lc === "country" || lc === "destination" || lc.includes("country") || lc.includes("destination");
+    });
+    const rankCol = reachCol ?? fbReachCol ?? igReachCol;
+    if (countryCol && rankCol) {
         const grouped = groupBy(rows, countryCol);
-        let topCountry = "";
+        let topName = "";
         let topVal = 0;
-        grouped.forEach((groupRows, country) => {
-            const val = sumColumn(groupRows, reachCol, dateRange?.from, dateRange?.to);
-            if (val > topVal) {
-                topVal = val;
-                topCountry = country;
-            }
+        grouped.forEach((groupRows, name) => {
+            const val = sumColumn(groupRows, rankCol, from, to);
+            if (val > topVal) { topVal = val; topName = name; }
         });
-        if (topCountry) {
-            kpis.push({
-                label: "Top Destination",
-                value: topCountry,
-                icon: "map-pin",
-            });
+        if (topName) {
+            kpis.push({ label: "Top Destination", value: topName, icon: "map-pin" });
         }
     }
 
-    // Avg CPR if available
-    const cprCol = numericColumns.find((c) => c.includes("cpr") || c === "CPR (Cost Per Result)");
-    if (cprCol) {
-        const paidRows = rows.filter((r) => r[cprCol] !== null && r[cprCol] !== undefined);
-        if (paidRows.length > 0) {
-            kpis.push({
-                label: "Avg CPR",
-                value: avgColumn(paidRows, cprCol, dateRange?.from, dateRange?.to).toFixed(2),
-                prefix: "$",
-                icon: "target",
-            });
-        }
-    }
-
-    return kpis.slice(0, 6);
+    return kpis.slice(0, 8);
 }
 
 // ─── Insights Generation ─────────────────────────────────────────────────────

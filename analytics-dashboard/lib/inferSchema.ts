@@ -21,10 +21,10 @@ function isDateString(value: string): boolean {
 }
 
 function isNumericColumn(rows: Row[], col: string): boolean {
-    const nonEmpty = rows.filter((r) => r[col] !== null && r[col] !== undefined);
+    const nonEmpty = rows.filter((r) => r[col] !== null && r[col] !== undefined && r[col] !== "");
     if (nonEmpty.length === 0) return false;
-    const numericCount = nonEmpty.filter((r) => typeof r[col] === "number").length;
-    return numericCount / nonEmpty.length >= 0.7;
+    const numericCount = nonEmpty.filter((r) => typeof r[col] === "number" || (typeof r[col] === "string" && r[col] !== "" && isFinite(Number((r[col] as string).replace(/,/g, ""))))).length;
+    return numericCount / nonEmpty.length >= 0.5;
 }
 
 function isDateColumn(rows: Row[], col: string): boolean {
@@ -77,7 +77,14 @@ export function inferSchema(rows: Row[]): InferredSchema {
         };
     }
 
-    const allColumns = Object.keys(rows[0]);
+    // Collect ALL unique keys from every row, not just the first
+    const colSet = new Set<string>();
+    for (const row of rows) {
+        for (const key of Object.keys(row)) {
+            if (key !== "history") colSet.add(key);
+        }
+    }
+    const allColumns = Array.from(colSet);
 
     const numericColumns = allColumns.filter((col) =>
         isNumericColumn(rows, col)

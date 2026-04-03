@@ -309,6 +309,8 @@ export function AdsClient() {
     const [selectedAd, setSelectedAd] = useState<AdCampaign | null>(null);
     const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
     const [selectedMonth, setSelectedMonth] = useState<string>("all");
+    const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
+    const [resultTypeFilter, setResultTypeFilter] = useState<string>("all");
     const fileRef = useRef<HTMLInputElement>(null);
 
     const load = async () => {
@@ -390,6 +392,13 @@ export function AdsClient() {
                     const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
                     if (ym !== selectedMonth) return false;
                 }
+                // Delivery filter
+                if (deliveryFilter !== "all" && a.ad_delivery !== deliveryFilter) return false;
+                // Result type filter
+                if (resultTypeFilter !== "all") {
+                    const label = resultLabel(a.result_indicator).toLowerCase();
+                    if (!label.includes(resultTypeFilter)) return false;
+                }
                 return true;
             })
             .sort((a, b) => {
@@ -400,7 +409,7 @@ export function AdsClient() {
                     : String(av).localeCompare(String(bv));
                 return sortDir === "asc" ? diff : -diff;
             });
-    }, [ads, search, selectedMonth, sortKey, sortDir]);
+    }, [ads, search, selectedMonth, deliveryFilter, resultTypeFilter, sortKey, sortDir]);
 
     // ── KPIs — derived from filtered so month filter affects them ───────────
     const totalSpend = filtered.reduce((s, a) => s + Number(a.amount_spent_usd), 0);
@@ -435,6 +444,12 @@ export function AdsClient() {
         name: shortName(a.ad_name),
         value: Number(a.amount_spent_usd),
         fill: PALETTE[i % PALETTE.length],
+    }));
+
+    const cpcCprData = filtered.map((a) => ({
+        name: shortName(a.ad_name),
+        "CPC (Link)": Number(a.cpc_link_click_usd),
+        "CPR": Number(a.cost_per_result),
     }));
 
     // ─── Loading / Empty states ──────────────────────────────────────────────
@@ -592,6 +607,52 @@ export function AdsClient() {
                             </div>
                         )}
 
+                        {/* ── QUICK FILTERS BAR ── */}
+                        <div className="rounded-2xl border border-white/8 bg-[#0f0f1e] p-4 flex flex-wrap items-center gap-4">
+                            <div className="flex items-center gap-2 text-slate-400 flex-shrink-0">
+                                <Filter className="w-4 h-4" />
+                                <span className="text-xs font-semibold uppercase tracking-widest">Filters</span>
+                            </div>
+                            {/* Delivery status */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-500">Delivery:</span>
+                                {(["all", "active", "not_delivering"] as const).map((val) => {
+                                    const label = val === "all" ? "All" : val === "active" ? "Active" : "Ended";
+                                    return (
+                                        <button key={val} onClick={() => setDeliveryFilter(val)}
+                                            className={cn("px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border",
+                                                deliveryFilter === val
+                                                    ? "bg-violet-600 text-white border-violet-500"
+                                                    : "border-white/10 text-slate-400 hover:text-white bg-white/5")}>
+                                            {label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            {/* Result type */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-500">Result Type:</span>
+                                {(["all", "conversations", "interactions", "clicks"] as const).map((val) => {
+                                    const label = val === "all" ? "All" : val === "conversations" ? "Conversations" : val === "interactions" ? "Post Interactions" : "Link Clicks";
+                                    return (
+                                        <button key={val} onClick={() => setResultTypeFilter(val)}
+                                            className={cn("px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border",
+                                                resultTypeFilter === val
+                                                    ? "bg-cyan-600 text-white border-cyan-500"
+                                                    : "border-white/10 text-slate-400 hover:text-white bg-white/5")}>
+                                            {label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            {(deliveryFilter !== "all" || resultTypeFilter !== "all") && (
+                                <button onClick={() => { setDeliveryFilter("all"); setResultTypeFilter("all"); }}
+                                    className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-white transition-colors">
+                                    <X className="w-3.5 h-3.5" /> Clear
+                                </button>
+                            )}
+                        </div>
+
                         {/* ── KPI CARDS ── */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             <KpiCard label="Total Ad Spend" value={fmtUsd(totalSpend)}
@@ -689,6 +750,23 @@ export function AdsClient() {
                                 </div>
                             </ChartCard>
                         </div>
+
+                        {/* ── CPC vs CPR CHART (full width) ── */}
+                        <ChartCard title="CPC (Link Click) vs Cost per Result per Campaign ($)">
+                            <div className="h-64">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={cpcCprData} margin={{ left: 0, right: 8 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                                        <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 9 }} axisLine={false} tickLine={false} interval={0} angle={-30} textAnchor="end" height={50} />
+                                        <YAxis tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
+                                        <Tooltip {...ChartTooltipStyle} formatter={((v: unknown) => [`$${Number(v).toFixed(2)}`, ""]) as any} />
+                                        <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
+                                        <Bar dataKey="CPC (Link)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="CPR" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </ChartCard>
 
                         {/* ── SEARCH + VIEW TOGGLE ── */}
                         <div className="flex flex-wrap items-center gap-3">
