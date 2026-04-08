@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMysqlPool } from "@/lib/mysql";
 import { getSessionUser } from "@/lib/session";
+import { ensureAdsTable, normalizeAdCampaign } from "@/lib/ads";
 
 // GET /api/ads — return all ad campaign rows
 export async function GET() {
@@ -9,10 +10,11 @@ export async function GET() {
 
     try {
         const pool = getMysqlPool();
+        await ensureAdsTable(pool);
         const [rows] = await pool.query(
             "SELECT * FROM ad_campaigns ORDER BY amount_spent_usd DESC"
         );
-        return NextResponse.json(rows);
+        return NextResponse.json((rows as Record<string, unknown>[]).map(normalizeAdCampaign));
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         // If table doesn't exist yet, return empty list gracefully
@@ -30,6 +32,7 @@ export async function DELETE() {
 
     try {
         const pool = getMysqlPool();
+        await ensureAdsTable(pool);
         await pool.query("DELETE FROM ad_campaigns");
         return NextResponse.json({ ok: true });
     } catch (err: unknown) {

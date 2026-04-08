@@ -7,6 +7,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { computeKpis, getLatestUpdateDate } from "@/lib/aggregate";
 import { getPackages } from "@/lib/db";
 import { inferSchema } from "@/lib/inferSchema";
+import { sortRowsByPublishedDate } from "@/lib/publishedDate";
 import type { Row, InferredSchema } from "@/lib/types";
 import { useState, useEffect } from "react";
 import { Loader2, Clock, TrendingUp, Package, BarChart3, Activity, Sparkles, Filter } from "lucide-react";
@@ -27,8 +28,9 @@ export function DashboardClient() {
     useEffect(() => {
         getPackages()
             .then((data) => {
-                setRows(data);
-                setSchema(inferSchema(data));
+                const sorted = sortRowsByPublishedDate(data);
+                setRows(sorted);
+                setSchema(inferSchema(sorted));
             })
             .catch(console.error)
             .finally(() => setIsLoading(false));
@@ -57,8 +59,14 @@ export function DashboardClient() {
         );
     }
 
-    const kpis = computeKpis(filteredRows, schema, rows, filters.dateRange);
+    const kpis = computeKpis(filteredRows, schema, filters.dateRange);
     const latestUpdate = getLatestUpdateDate(rows);
+    const hasActiveFilters =
+        !!filters.dateRange ||
+        !!filters.searchTerm.trim() ||
+        Object.values(filters.categoryFilters).some((values) => values.length > 0);
+    const summaryLabel = filters.dateRange ? "Published" : hasActiveFilters ? "Filtered" : "Total";
+    const summaryCount = hasActiveFilters ? filteredRows.length : rows.length;
 
     return (
         <div className="flex flex-col gap-0">
@@ -117,8 +125,8 @@ export function DashboardClient() {
                         <div className="flex flex-wrap gap-2">
                             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/8 backdrop-blur-sm border border-white/12">
                                 <Package className="w-3.5 h-3.5 text-violet-300" />
-                                <span className="text-xs text-white/60">Total</span>
-                                <span className="text-xs font-bold text-white">{rows.length} packages</span>
+                                <span className="text-xs text-white/60">{summaryLabel}</span>
+                                <span className="text-xs font-bold text-white">{summaryCount} packages</span>
                             </div>
                             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/8 backdrop-blur-sm border border-white/12">
                                 <Filter className="w-3.5 h-3.5 text-cyan-300" />
@@ -198,5 +206,3 @@ export function DashboardClient() {
         </div>
     );
 }
-
-

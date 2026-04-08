@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import type { Row, InferredSchema } from "@/lib/types";
 import { timeSeries, groupBy } from "@/lib/aggregate";
+import { getPublishedDateColumn } from "@/lib/publishedDate";
 import { TrendingUp, Medal } from "lucide-react";
 
 interface TrendChartProps {
@@ -56,6 +57,7 @@ function sumCol(rows: Row[], col: string): number {
 
 export function TrendChart({ rows, schema, dateRange }: TrendChartProps) {
     const { numericColumns, dateColumns, allColumns } = schema;
+    const publishedDateColumn = getPublishedDateColumn(dateColumns);
 
     // Pick a sensible default metric (prefer combined/fb reach)
     const defaultMetric =
@@ -85,9 +87,9 @@ export function TrendChart({ rows, schema, dateRange }: TrendChartProps) {
 
     const maxVal = top5[0]?.value ?? 1;
 
-    const hasChartData = dateColumns.length > 0 && numericColumns.length > 0;
+    const hasChartData = !!publishedDateColumn && numericColumns.length > 0;
     const trendData = hasChartData
-        ? timeSeries(rows, dateColumns[0], selectedMetric, "month", dateRange?.from, dateRange?.to)
+        ? timeSeries(rows, publishedDateColumn, selectedMetric, "month", dateRange?.from, dateRange?.to)
         : [];
 
     const metricLabel = selectedMetric.replace(/_/g, " ");

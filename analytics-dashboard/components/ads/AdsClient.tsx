@@ -7,11 +7,11 @@ import {
     Loader2, TrendingUp, TrendingDown, DollarSign, Eye, MousePointerClick,
     Users, BarChart2, ChevronDown, ChevronUp, Info, FileSpreadsheet,
     Filter, ArrowUpDown, LayoutGrid, List as ListIcon, Calendar,
+    BookOpen, ImagePlus, Images, Pencil, Save,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -39,7 +39,16 @@ export interface AdCampaign {
     clicks_all: number;
     ctr_all: number;
     cpc_all_usd: number;
+    booking_count: number;
+    product_image_url: string | null;
+    product_image_urls: string[];
     created_at: string;
+}
+
+interface AdUpdatePayload {
+    booking_count: number;
+    product_image_url: string | null;
+    product_image_urls: string[];
 }
 
 // ─── Lazy chart imports ───────────────────────────────────────────────────────
@@ -90,6 +99,73 @@ function resultLabel(indicator: string | null) {
     if (indicator.includes("post_interaction")) return "Post Interactions";
     if (indicator.includes("link_click")) return "Link Clicks";
     return "Results";
+}
+
+function normalizeImageUrls(value: unknown): string[] {
+    if (Array.isArray(value)) {
+        return value.map((item) => String(item)).filter(Boolean);
+    }
+
+    if (typeof value === "string" && value.trim()) {
+        try {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) {
+                return parsed.map((item) => String(item)).filter(Boolean);
+            }
+        } catch {
+            return [value];
+        }
+    }
+
+    return [];
+}
+
+function normalizeAdCampaign(ad: Record<string, unknown>): AdCampaign {
+    const productImageUrls = normalizeImageUrls(ad.product_image_urls);
+    const productImageUrl =
+        typeof ad.product_image_url === "string" && ad.product_image_url.trim()
+            ? ad.product_image_url
+            : productImageUrls[0] ?? null;
+
+    return {
+        ...ad,
+        id: Number(ad.id),
+        results: Number(ad.results) || 0,
+        reach: Number(ad.reach) || 0,
+        frequency: Number(ad.frequency) || 0,
+        cost_per_result: Number(ad.cost_per_result) || 0,
+        ad_set_budget_type: Number(ad.ad_set_budget_type) || 0,
+        amount_spent_usd: Number(ad.amount_spent_usd) || 0,
+        impressions: Number(ad.impressions) || 0,
+        cpm_usd: Number(ad.cpm_usd) || 0,
+        link_clicks: Number(ad.link_clicks) || 0,
+        cpc_link_click_usd: Number(ad.cpc_link_click_usd) || 0,
+        ctr_link_click: Number(ad.ctr_link_click) || 0,
+        clicks_all: Number(ad.clicks_all) || 0,
+        ctr_all: Number(ad.ctr_all) || 0,
+        cpc_all_usd: Number(ad.cpc_all_usd) || 0,
+        booking_count: Number(ad.booking_count) || 0,
+        product_image_url: productImageUrl,
+        product_image_urls: productImageUrls,
+        batch_id: String(ad.batch_id ?? ""),
+        reporting_starts: (ad.reporting_starts as string | null) ?? null,
+        reporting_ends: (ad.reporting_ends as string | null) ?? null,
+        ad_name: String(ad.ad_name ?? ""),
+        ad_delivery: (ad.ad_delivery as string | null) ?? null,
+        result_indicator: (ad.result_indicator as string | null) ?? null,
+        ad_set_budget: (ad.ad_set_budget as string | null) ?? null,
+        ends: (ad.ends as string | null) ?? null,
+        created_at: String(ad.created_at ?? ""),
+    };
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+        reader.readAsDataURL(file);
+    });
 }
 
 // ─── Export helpers ───────────────────────────────────────────────────────────
@@ -195,7 +271,28 @@ const ChartTooltipStyle = {
 };
 
 // ─── Ad Detail Modal ──────────────────────────────────────────────────────────
-function AdDetailModal({ ad, onClose }: { ad: AdCampaign; onClose: () => void }) {
+function AdDetailModal({
+    ad,
+    onClose,
+    onSave,
+    saving,
+}: {
+    ad: AdCampaign;
+    onClose: () => void;
+    onSave: (payload: AdUpdatePayload) => Promise<void>;
+    saving: boolean;
+}) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [bookingCount, setBookingCount] = useState(String(ad.booking_count ?? 0));
+    const [imageUrls, setImageUrls] = useState<string[]>(
+        ad.product_image_urls.length > 0
+            ? ad.product_image_urls
+            : ad.product_image_url
+                ? [ad.product_image_url]
+                : []
+    );
+    const imageInputRef = useRef<HTMLInputElement>(null);
+
     const metrics = [
         { label: "Amount Spent", value: fmtUsd(ad.amount_spent_usd), icon: DollarSign, color: "text-emerald-400" },
         { label: "Reach", value: fmt(ad.reach), icon: Users, color: "text-blue-400" },
@@ -209,6 +306,7 @@ function AdDetailModal({ ad, onClose }: { ad: AdCampaign; onClose: () => void })
         { label: "Clicks (All)", value: fmt(ad.clicks_all), icon: MousePointerClick, color: "text-yellow-400" },
         { label: "CTR (All)", value: fmtPct(ad.ctr_all), icon: TrendingUp, color: "text-rose-400" },
         { label: "CPC (Link)", value: fmtUsd(ad.cpc_link_click_usd), icon: DollarSign, color: "text-sky-400" },
+        { label: "Bookings", value: fmt(ad.booking_count), icon: BookOpen, color: "text-emerald-300" },
     ];
 
     const barData = [
@@ -218,6 +316,46 @@ function AdDetailModal({ ad, onClose }: { ad: AdCampaign; onClose: () => void })
         { name: "Link Clicks", value: ad.link_clicks, fill: "#f59e0b" },
         { name: "Results", value: ad.results, fill: "#ef4444" },
     ];
+
+    const handleImageUpload = async (files: FileList | null) => {
+        if (!files || files.length === 0) return;
+
+        const uploads = await Promise.all(Array.from(files).map(fileToDataUrl));
+        setImageUrls((prev) => [...prev, ...uploads].filter(Boolean));
+        setIsEditing(true);
+    };
+
+    const handleRemoveImage = (index: number) => {
+        setImageUrls((prev) => prev.filter((_, i) => i !== index));
+        setIsEditing(true);
+    };
+
+    const handleCancelEdit = () => {
+        setIsEditing(false);
+        setBookingCount(String(ad.booking_count ?? 0));
+        setImageUrls(
+            ad.product_image_urls.length > 0
+                ? ad.product_image_urls
+                : ad.product_image_url
+                    ? [ad.product_image_url]
+                    : []
+        );
+    };
+
+    const handleSave = async () => {
+        const nextBookingCount = Math.max(0, Number(bookingCount) || 0);
+        const nextImageUrls = imageUrls.filter(Boolean);
+        try {
+            await onSave({
+                booking_count: nextBookingCount,
+                product_image_url: nextImageUrls[0] ?? null,
+                product_image_urls: nextImageUrls,
+            });
+            setIsEditing(false);
+        } catch {
+            // The parent already surfaces the save error.
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -239,6 +377,37 @@ function AdDetailModal({ ad, onClose }: { ad: AdCampaign; onClose: () => void })
                         )}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                        {!isEditing ? (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs border-white/10 bg-white/5 hover:bg-white/10"
+                                onClick={() => setIsEditing(true)}
+                            >
+                                <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
+                            </Button>
+                        ) : (
+                            <>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-xs border-white/10 bg-white/5 hover:bg-white/10"
+                                    onClick={handleCancelEdit}
+                                    disabled={saving}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    className="text-xs bg-violet-600 hover:bg-violet-700"
+                                    onClick={handleSave}
+                                    disabled={saving}
+                                >
+                                    {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
+                                    Save
+                                </Button>
+                            </>
+                        )}
                         <Button size="sm" variant="outline"
                             className="text-xs border-white/10 bg-white/5 hover:bg-white/10"
                             onClick={() => exportAdToXlsx(ad)}>
@@ -251,6 +420,108 @@ function AdDetailModal({ ad, onClose }: { ad: AdCampaign; onClose: () => void })
                 </div>
 
                 <div className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_0.8fr] gap-4">
+                        <div className="rounded-xl border border-white/8 bg-white/3 p-4">
+                            <div className="flex items-center justify-between gap-3 mb-3">
+                                <div className="flex items-center gap-2">
+                                    <Images className="w-4 h-4 text-violet-400" />
+                                    <div>
+                                        <p className="text-sm font-semibold text-white">Ad Images</p>
+                                        <p className="text-[11px] text-slate-500">Upload product images for this ad.</p>
+                                    </div>
+                                </div>
+                                {isEditing && (
+                                    <>
+                                        <input
+                                            ref={imageInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            multiple
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                void handleImageUpload(e.target.files);
+                                                e.target.value = "";
+                                            }}
+                                        />
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="text-xs border-white/10 bg-white/5 hover:bg-white/10"
+                                            onClick={() => imageInputRef.current?.click()}
+                                            disabled={saving}
+                                        >
+                                            <ImagePlus className="w-3.5 h-3.5 mr-1" /> Upload Images
+                                        </Button>
+                                    </>
+                                )}
+                            </div>
+
+                            {imageUrls.length > 0 ? (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    {imageUrls.map((url, index) => (
+                                        <div key={`${url.slice(0, 20)}-${index}`} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/20 aspect-[4/3]">
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={url} alt={`${ad.ad_name} image ${index + 1}`} className="w-full h-full object-cover" />
+                                            {isEditing && (
+                                                <button
+                                                    type="button"
+                                                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/65 text-white hover:bg-red-500 transition-colors"
+                                                    onClick={() => handleRemoveImage(index)}
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                            {index === 0 && (
+                                                <span className="absolute bottom-2 left-2 rounded-full bg-violet-600/90 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                                    Cover
+                                                </span>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="rounded-xl border border-dashed border-white/10 bg-black/10 p-8 text-center">
+                                    <ImagePlus className="w-8 h-8 text-slate-500 mx-auto mb-2" />
+                                    <p className="text-sm font-medium text-slate-300">No images saved yet</p>
+                                    <p className="text-[11px] text-slate-500 mt-1">Use Edit to upload product images for this ad.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="rounded-xl border border-white/8 bg-white/3 p-4">
+                            <div className="flex items-center gap-2 mb-4">
+                                <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
+                                    <BookOpen className="w-5 h-5 text-emerald-300" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-white">Bookings</p>
+                                    <p className="text-[11px] text-slate-500">Track confirmed bookings from this ad.</p>
+                                </div>
+                            </div>
+
+                            {isEditing ? (
+                                <div className="space-y-3">
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        value={bookingCount}
+                                        onChange={(e) => setBookingCount(e.target.value)}
+                                        className="bg-white/5 border-white/10 text-white"
+                                    />
+                                    <p className="text-[11px] text-slate-500">Update the booking count, then save the ad.</p>
+                                </div>
+                            ) : (
+                                <div>
+                                    <div className="flex items-end gap-2">
+                                        <span className="text-4xl font-black text-white">{fmt(ad.booking_count)}</span>
+                                        <span className="text-sm text-slate-500 mb-1">bookings</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mt-3">Click Edit to change the booking total.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Metrics grid */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         {metrics.map(({ label, value, icon: Icon, color }) => (
@@ -301,6 +572,7 @@ function AdDetailModal({ ad, onClose }: { ad: AdCampaign; onClose: () => void })
 export function AdsClient() {
     const [ads, setAds] = useState<AdCampaign[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [savingAdId, setSavingAdId] = useState<number | null>(null);
     const [uploading, setUploading] = useState(false);
     const [uploadMsg, setUploadMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
     const [search, setSearch] = useState("");
@@ -318,7 +590,7 @@ export function AdsClient() {
         try {
             const res = await fetch("/api/ads", { credentials: "include" });
             const data = await res.json();
-            setAds(Array.isArray(data) ? data : []);
+            setAds(Array.isArray(data) ? data.map((item) => normalizeAdCampaign(item as Record<string, unknown>)) : []);
         } finally {
             setIsLoading(false);
         }
@@ -354,6 +626,33 @@ export function AdsClient() {
         await fetch(`/api/ads/${id}`, { method: "DELETE", credentials: "include" });
         setAds((prev) => prev.filter((a) => a.id !== id));
         if (selectedAd?.id === id) setSelectedAd(null);
+    };
+
+    const handleSaveAd = async (id: number, payload: AdUpdatePayload) => {
+        setSavingAdId(id);
+        try {
+            const res = await fetch(`/api/ads/${id}`, {
+                method: "PUT",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to save ad");
+
+            const updated = normalizeAdCampaign(data as Record<string, unknown>);
+            setAds((prev) => prev.map((ad) => ad.id === id ? updated : ad));
+            setSelectedAd(updated);
+            setUploadMsg({ type: "ok", text: `Saved updates for ${updated.ad_name}` });
+        } catch (error) {
+            setUploadMsg({
+                type: "err",
+                text: error instanceof Error ? error.message : "Failed to save ad details",
+            });
+            throw error;
+        } finally {
+            setSavingAdId(null);
+        }
     };
 
     // ── Derive available months from all ads ────────────────────────────────
@@ -823,6 +1122,7 @@ export function AdsClient() {
                                                     { key: "reach" as keyof AdCampaign, label: "Reach" },
                                                     { key: "impressions" as keyof AdCampaign, label: "Impr." },
                                                     { key: "results" as keyof AdCampaign, label: "Results" },
+                                                    { key: "booking_count" as keyof AdCampaign, label: "Bookings" },
                                                     { key: "cost_per_result" as keyof AdCampaign, label: "CPR ($)" },
                                                     { key: "ctr_link_click" as keyof AdCampaign, label: "CTR%" },
                                                     { key: "cpm_usd" as keyof AdCampaign, label: "CPM ($)" },
@@ -857,6 +1157,12 @@ export function AdsClient() {
                                                 <td className="px-4 py-3 text-slate-300 text-xs">{fmt(Number(ad.reach))}</td>
                                                 <td className="px-4 py-3 text-slate-300 text-xs">{fmt(Number(ad.impressions))}</td>
                                                 <td className="px-4 py-3 text-pink-400 font-semibold text-xs">{fmt(Number(ad.results))}</td>
+                                                <td className="px-4 py-3 text-emerald-300 text-xs">
+                                                    <div className="inline-flex items-center gap-1">
+                                                        <BookOpen className="w-3.5 h-3.5" />
+                                                        {fmt(Number(ad.booking_count))}
+                                                    </div>
+                                                </td>
                                                 <td className="px-4 py-3 text-slate-300 text-xs">{fmtUsd(Number(ad.cost_per_result))}</td>
                                                 <td className="px-4 py-3 text-cyan-400 text-xs">{fmtPct(Number(ad.ctr_link_click))}</td>
                                                 <td className="px-4 py-3 text-slate-300 text-xs">{fmtUsd(Number(ad.cpm_usd))}</td>
@@ -884,7 +1190,15 @@ export function AdsClient() {
             </div>
 
             {/* Ad detail modal */}
-            {selectedAd && <AdDetailModal ad={selectedAd} onClose={() => setSelectedAd(null)} />}
+            {selectedAd && (
+                <AdDetailModal
+                    key={selectedAd.id}
+                    ad={selectedAd}
+                    onClose={() => setSelectedAd(null)}
+                    onSave={(payload) => handleSaveAd(selectedAd.id, payload)}
+                    saving={savingAdId === selectedAd.id}
+                />
+            )}
         </div>
     );
 }
@@ -908,6 +1222,17 @@ function AdCard({
             className="group rounded-2xl border border-white/8 bg-[#0f0f1e] hover:border-violet-500/30 hover:bg-violet-500/5 transition-all duration-200 cursor-pointer overflow-hidden"
             onClick={onClick}
         >
+            {ad.product_image_url && (
+                <div className="relative h-40 border-b border-white/5 bg-black/20">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={ad.product_image_url} alt={ad.ad_name} className="w-full h-full object-cover" />
+                    <div className="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-semibold text-white">
+                        <Images className="w-3 h-3" />
+                        {(ad.product_image_urls.length || 1).toLocaleString()} image{(ad.product_image_urls.length || 1) !== 1 ? "s" : ""}
+                    </div>
+                </div>
+            )}
+
             {/* Header bar */}
             <div className="px-4 pt-4 pb-3 border-b border-white/5">
                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -933,6 +1258,10 @@ function AdCard({
                     {efficiency && (
                         <span className={`text-[10px] font-semibold ${effColor}`}>{efficiency} CPR</span>
                     )}
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-300">
+                        <BookOpen className="w-3 h-3" />
+                        {fmt(Number(ad.booking_count))} bookings
+                    </span>
                     {ad.reporting_starts && (
                         <span className="text-[10px] text-slate-600">{ad.reporting_starts} → {ad.reporting_ends}</span>
                     )}
@@ -960,7 +1289,10 @@ function AdCard({
             <div className="px-4 pb-4">
                 <div className="flex items-center justify-between text-[10px] text-slate-600">
                     <span>Cost/Result: <span className="text-slate-400 font-semibold">{fmtUsd(Number(ad.cost_per_result))}</span></span>
-                    <span>Clicks: <span className="text-slate-400 font-semibold">{fmt(Number(ad.link_clicks))}</span></span>
+                    <span className="inline-flex items-center gap-1">
+                        <BookOpen className="w-3 h-3 text-emerald-300" />
+                        <span className="text-slate-400 font-semibold">{fmt(Number(ad.booking_count))}</span>
+                    </span>
                 </div>
             </div>
         </div>

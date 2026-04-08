@@ -13,6 +13,7 @@ import {
 import { X, Search, SlidersHorizontal } from "lucide-react";
 import type { Row, InferredSchema } from "@/lib/types";
 import { useState, useRef, useEffect } from "react";
+import { getPublishedDate } from "@/lib/publishedDate";
 
 interface FiltersProps {
     rows: Row[];
@@ -41,6 +42,7 @@ export function Filters({
     const [expanded, setExpanded] = useState(false);
     const [isFocused, setIsFocused] = useState(false);
     const searchRef = useRef<HTMLDivElement>(null);
+    const hasPublishedDateFilter = dateColumns.length > 0 || rows.some((row) => !!getPublishedDate(row, dateColumns));
 
     // Handle clicks outside the search component
     useEffect(() => {
@@ -157,7 +159,7 @@ export function Filters({
             {expanded && (
                 <div className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {/* Date range */}
-                    {dateColumns.length > 0 && (
+                    {hasPublishedDateFilter && (
                         <div className="flex flex-col gap-1.5">
                             <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                                 From Date
@@ -175,7 +177,7 @@ export function Filters({
                             />
                         </div>
                     )}
-                    {dateColumns.length > 0 && (
+                    {hasPublishedDateFilter && (
                         <div className="flex flex-col gap-1.5">
                             <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                                 To Date

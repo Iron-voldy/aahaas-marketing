@@ -2,7 +2,7 @@
 
 import { useReducer, useMemo, useCallback } from "react";
 import type { Row, FilterState } from "@/lib/types";
-import { parseFlexibleDate } from "@/lib/inferSchema";
+import { getPublishedDate, sortRowsByPublishedDate } from "@/lib/publishedDate";
 
 type Action =
     | { type: "SET_DATE_RANGE"; payload: { from: string; to: string } | null }
@@ -78,64 +78,43 @@ export function useFilters(rows: Row[], dateColumns: string[]) {
     const filteredRows = useMemo(() => {
         let result = rows;
 
-        // Date range filter
-        if (filters.dateRange && dateColumns.length > 0) {
-            // Use T00:00:00 to force local time parsing of YYYY-MM-DD strings
+        if (filters.dateRange) {
             const from = new Date(filters.dateRange.from + "T00:00:00");
             const to = new Date(filters.dateRange.to + "T23:59:59.999");
 
             result = result.filter((row) => {
-                const history = row.history as Record<string, any> | undefined;
-                
-                // 1. If history exists, check if any recorded date is before or within the range
-                // This ensures we show packages that were already alive and active.
-                if (history) {
-                    const hDates = Object.keys(history).sort();
-                    if (hDates.length > 0 && hDates[0] <= filters.dateRange!.to) return true;
-                }
-
-                // 2. Fallback: Check ALL published date columns
-                for (const dc of dateColumns) {
-                    const rawVal = row[dc];
-                    if (!rawVal) continue;
-                    const d = parseFlexibleDate(rawVal);
-                    
-                    // Show if published at or before the end of the range
-                    if (d && d <= to) return true;
-                }
-                return false;
+                const publishedDate = getPublishedDate(row, dateColumns);
+                if (!publishedDate) return false;
+                return publishedDate >= from && publishedDate <= to;
             });
         }
 
-        // Category filters
         for (const [col, values] of Object.entries(filters.categoryFilters)) {
             if (!values || values.length === 0) continue;
             result = result.filter((row) => {
-                const val = String(row[col] ?? "");
-                return values.includes(val);
+                const value = String(row[col] ?? "");
+                return values.includes(value);
             });
         }
 
-        // Numeric range filters
         for (const [col, [min, max]] of Object.entries(filters.numericRanges)) {
             result = result.filter((row) => {
-                const val = row[col];
-                if (typeof val !== "number") return true;
-                return val >= min && val <= max;
+                const value = row[col];
+                if (typeof value !== "number") return true;
+                return value >= min && value <= max;
             });
         }
 
-        // Search term
         if (filters.searchTerm.trim()) {
             const term = filters.searchTerm.toLowerCase();
             result = result.filter((row) =>
-                Object.values(row).some((v) =>
-                    v !== null && typeof v !== "object" && String(v).toLowerCase().includes(term)
+                Object.values(row).some((value) =>
+                    value !== null && typeof value !== "object" && String(value).toLowerCase().includes(term)
                 )
             );
         }
 
-        return result;
+        return sortRowsByPublishedDate(result, dateColumns);
     }, [rows, filters, dateColumns]);
 
     return {

@@ -20,6 +20,7 @@ import { Loader2 } from "lucide-react";
 import { getPackages } from "@/lib/db";
 import { deletePackage } from "@/lib/db";
 import { inferSchema } from "@/lib/inferSchema";
+import { sortRowsByPublishedDate } from "@/lib/publishedDate";
 
 const PackageDetailModal = dynamic(
     () => import("@/components/packages/PackageDetailModal").then(m => m.PackageDetailModal),
@@ -47,8 +48,9 @@ export function PackagesClient() {
     useEffect(() => {
         getPackages()
             .then((data) => {
-                setRows(data);
-                setSchema(inferSchema(data));
+                const sorted = sortRowsByPublishedDate(data);
+                setRows(sorted);
+                setSchema(inferSchema(sorted));
             })
             .catch((err) => console.error(err))
             .finally(() => setIsLoading(false));
@@ -310,8 +312,9 @@ export function PackagesClient() {
                     setIsLoading(true);
                     getPackages()
                         .then((data) => {
-                            setRows(data);
-                            setSchema(inferSchema(data));
+                            const sorted = sortRowsByPublishedDate(data);
+                            setRows(sorted);
+                            setSchema(inferSchema(sorted));
                         })
                         .catch(console.error)
                         .finally(() => setIsLoading(false));
@@ -328,8 +331,9 @@ export function PackagesClient() {
                     setIsLoading(true);
                     getPackages()
                         .then((data) => {
-                            setRows(data);
-                            setSchema(inferSchema(data));
+                            const sorted = sortRowsByPublishedDate(data);
+                            setRows(sorted);
+                            setSchema(inferSchema(sorted));
                         })
                         .catch(console.error)
                         .finally(() => setIsLoading(false));

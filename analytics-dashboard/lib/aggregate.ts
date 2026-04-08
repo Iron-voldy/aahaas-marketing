@@ -9,6 +9,7 @@ import type {
     InsightResult,
 } from "./types";
 import { parseFlexibleDate } from "./inferSchema";
+import { getPublishedDate } from "./publishedDate";
 
 // ─── Group By ───────────────────────────────────────────────────────────────
 export function groupBy(rows: Row[], column: string): Map<string, Row[]> {
@@ -291,7 +292,7 @@ export function detectOutliers(rows: Row[], col: string): OutlierResult[] {
 }
 
 // ─── KPI Computation ─────────────────────────────────────────────────────────
-export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows: Row[] = [], dateRange: { from: string; to: string } | null = null): KpiCard[] {
+export function computeKpis(filteredRows: Row[], schema: InferredSchema, dateRange: { from: string; to: string } | null = null): KpiCard[] {
     const kpis: KpiCard[] = [];
     const { numericColumns, categoricalColumns, allColumns } = schema;
     const rows = filteredRows;
@@ -310,8 +311,8 @@ export function computeKpis(filteredRows: Row[], schema: InferredSchema, allRows
 
     // ── 1. Total Packages ──
     kpis.push({
-        label: "Total Packages",
-        value: (allRows.length > 0 ? allRows.length : rows.length).toLocaleString(),
+        label: "Published Posts",
+        value: rows.length.toLocaleString(),
         icon: "package",
     });
 
@@ -598,19 +599,8 @@ export function getLatestUpdateDate(rows: Row[]): string | null {
             const time = new Date(row.updatedAt).getTime();
             if (time > latest && !isNaN(time)) latest = time;
         } else {
-            // Fallback to published date if no updatedAt exists yet
-            const pubDate = String(row["Date Published"] || row["date_published"] || "");
-            if (pubDate) {
-                let time = new Date(pubDate).getTime();
-                if (isNaN(time)) {
-                    // Try DD-MM-YYYY
-                    const parts = pubDate.split("-");
-                    if (parts.length === 3) {
-                        time = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
-                    }
-                }
-                if (time > latest && !isNaN(time)) latest = time;
-            }
+            const publishedDate = getPublishedDate(row);
+            if (publishedDate && publishedDate.getTime() > latest) latest = publishedDate.getTime();
         }
     }
 
