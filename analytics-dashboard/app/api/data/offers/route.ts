@@ -11,15 +11,30 @@ function parseOfferRows(dbRows: { id: string; data: string }[]): SeasonalOffer[]
     });
 }
 
+function sortOffersByPublishedDate(offers: SeasonalOffer[]): SeasonalOffer[] {
+    return [...offers].sort((a, b) => {
+        const aTime = a.datePublished ? new Date(a.datePublished).getTime() : 0;
+        const bTime = b.datePublished ? new Date(b.datePublished).getTime() : 0;
+        const safeATime = Number.isFinite(aTime) ? aTime : 0;
+        const safeBTime = Number.isFinite(bTime) ? bTime : 0;
+        return safeBTime - safeATime;
+    });
+}
+
 // -- GET /api/data/offers
 export async function GET() {
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const pool = getMysqlPool();
-    const [rows] = await pool.query(
-        "SELECT id, data FROM offer_data ORDER BY JSON_UNQUOTE(JSON_EXTRACT(data, '$.datePublished')) DESC"
-    );
-    return NextResponse.json(parseOfferRows(rows as { id: string; data: string }[]));
+    try {
+        const pool = getMysqlPool();
+        const [rows] = await pool.query("SELECT id, data FROM offer_data");
+        return NextResponse.json(
+            sortOffersByPublishedDate(parseOfferRows(rows as { id: string; data: string }[]))
+        );
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({ error: msg }, { status: 500 });
+    }
 }
 
 // -- POST /api/data/offers

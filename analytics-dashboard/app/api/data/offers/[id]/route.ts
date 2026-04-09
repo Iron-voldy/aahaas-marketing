@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getMysqlPool } from "@/lib/mysql";
 import { getSessionUser } from "@/lib/session";
 import type { SeasonalOffer } from "@/lib/db";
+import { detachTargetMappings, updatePostsCategory } from "@/lib/reportMappings";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -55,6 +56,25 @@ export async function DELETE(_req: Request, { params }: Params) {
 
     const { id } = await params;
     const pool = getMysqlPool();
-    await pool.query("DELETE FROM offer_data WHERE id = ?", [id]);
-    return NextResponse.json({ ok: true });
+    const conn = await pool.getConnection();
+
+    try {
+        await conn.beginTransaction();
+
+        const postIds = await detachTargetMappings(conn, "seasonal_offer", id);
+        if (postIds.length > 0) {
+            await updatePostsCategory(conn, postIds, "general", false);
+        }
+
+        await conn.query("DELETE FROM offer_data WHERE id = ?", [id]);
+        await conn.commit();
+
+        return NextResponse.json({ ok: true });
+    } catch (err: unknown) {
+        await conn.rollback();
+        const msg = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({ error: msg }, { status: 500 });
+    } finally {
+        conn.release();
+    }
 }

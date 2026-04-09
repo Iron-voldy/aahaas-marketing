@@ -8,6 +8,7 @@ export async function ensureAdsTable(pool: Pool) {
             reporting_starts     DATE,
             reporting_ends       DATE,
             ad_name              VARCHAR(500)  NOT NULL,
+            objective            VARCHAR(255),
             ad_delivery          VARCHAR(100),
             results              INT           DEFAULT 0,
             result_indicator     VARCHAR(500),
@@ -19,6 +20,8 @@ export async function ensureAdsTable(pool: Pool) {
             amount_spent_usd     DECIMAL(12,4) DEFAULT 0,
             ends                 DATE,
             impressions          BIGINT        DEFAULT 0,
+            views                BIGINT        DEFAULT 0,
+            engagements          BIGINT        DEFAULT 0,
             cpm_usd              DECIMAL(12,4) DEFAULT 0,
             link_clicks          INT           DEFAULT 0,
             cpc_link_click_usd   DECIMAL(12,4) DEFAULT 0,
@@ -37,9 +40,12 @@ export async function ensureAdsTable(pool: Pool) {
     `);
 
     const alterStatements = [
+        "ALTER TABLE ad_campaigns ADD COLUMN objective VARCHAR(255) NULL",
         "ALTER TABLE ad_campaigns ADD COLUMN booking_count INT DEFAULT 0",
         "ALTER TABLE ad_campaigns ADD COLUMN product_image_url LONGTEXT NULL",
         "ALTER TABLE ad_campaigns ADD COLUMN product_image_urls JSON NULL",
+        "ALTER TABLE ad_campaigns ADD COLUMN views BIGINT DEFAULT 0",
+        "ALTER TABLE ad_campaigns ADD COLUMN engagements BIGINT DEFAULT 0",
     ];
 
     for (const statement of alterStatements) {
@@ -82,7 +88,10 @@ export function normalizeAdCampaign<T extends Record<string, unknown>>(row: T) {
 
     return {
         ...row,
+        objective: typeof row.objective === "string" ? row.objective : null,
         booking_count: Number(row.booking_count) || 0,
+        views: Number(row.views) || 0,
+        engagements: Number(row.engagements) || 0,
         product_image_url: productImageUrl,
         product_image_urls: productImageUrls,
     };

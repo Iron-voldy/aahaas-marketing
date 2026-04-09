@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import NextImage from "next/image";
 import {
     FileSpreadsheet, Download, Upload, Search, Filter, Calendar,
@@ -328,6 +329,7 @@ function groupPosts(posts: PostRow[]): GroupedPost[] {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function ReportsClient() {
+    const router = useRouter();
     const [posts, setPosts] = useState<PostRow[]>([]);
     const [summary, setSummary] = useState<Summary | null>(null);
     const [loading, setLoading] = useState(true);
@@ -419,11 +421,13 @@ export function ReportsClient() {
     ) => {
         setCategorizingKey(group.groupKey);
         try {
+            const postIds = group.platforms.map(p => p.id);
+            const primary = group.primaryPost;
+            const payload: Record<string, unknown> = { postIds, category };
+
             if (category !== "ignore") {
-                const postIds = group.platforms.map(p => p.id);
                 // Build post data payload so categorize API can pre-fill stats
-                const primary = group.primaryPost;
-                const postData = {
+                payload.postData = {
                     title: group.displayTitle,
                     description: primary.description || primary.title || "",
                     country: group.country || "",
@@ -440,22 +444,43 @@ export function ReportsClient() {
                     igShares: group.igPost?.shares || 0,
                     igSaves: group.igPost?.saves || 0,
                 };
-                await fetch("/api/reports/categorize", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    credentials: "include",
-                    body: JSON.stringify({ postIds, category, postData }),
-                });
-                // Show toast
-                const msg = category === "package" ? "Added to Packages ✓" : "Added to Offers ✓";
-                setToast({ msg, type: category === "package" ? "package" : "offer" });
-                setTimeout(() => setToast(null), 3000);
             }
+
+            const resp = await fetch("/api/reports/categorize", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload),
+            });
+
+            const result = await resp.json().catch(() => null) as { error?: string } | null;
+            if (!resp.ok) {
+                throw new Error(result?.error || `HTTP ${resp.status}`);
+            }
+
+            setDismissedKeys(prev => {
+                const next = new Set(prev);
+                next.add(group.groupKey);
+                return next;
+            });
+            setPosts(prev => prev.filter(post => !postIds.includes(post.id)));
+            setDetailGroup(prev => prev?.groupKey === group.groupKey ? null : prev);
+
+            if (category === "ignore") {
+                await fetchPosts();
+                return;
+            }
+
+            const msg = category === "package" ? "Added to Packages ✓" : "Added to Offers ✓";
+            setToast({ msg, type: category === "package" ? "package" : "offer" });
+            setTimeout(() => setToast(null), 3000);
+            router.push(category === "package" ? "/packages" : "/offers");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
         } finally {
-            setDismissedKeys(prev => { const next = new Set(prev); next.add(group.groupKey); return next; });
             setCategorizingKey(null);
         }
-    }, []);
+    }, [fetchPosts, router]);
 
     const monthOptions = useMemo(() => getMonthOptions(), []);
 

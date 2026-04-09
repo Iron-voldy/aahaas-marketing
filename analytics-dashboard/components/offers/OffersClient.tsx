@@ -16,6 +16,13 @@ import { OfferDetailModal } from "@/components/offers/OfferDetailModal";
 import { getOffers, addOffer, updateOffer, deleteOffer } from "@/lib/db";
 import type { SeasonalOffer } from "@/lib/db";
 import { cn } from "@/lib/utils";
+import {
+    getContentSourceLabel,
+    getOfferSource,
+    matchesContentSource,
+    normalizeContentSource,
+    type ContentSourceFilter,
+} from "@/lib/contentSource";
 
 // ── Category options ────────────────────────────────────────────────────────
 const OFFER_CATEGORIES = [
@@ -65,6 +72,7 @@ export function OffersClient() {
     const [search, setSearch] = useState("");
     const [activeCategory, setActiveCategory] = useState("All");
     const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+    const [sourceFilter, setSourceFilter] = useState<ContentSourceFilter>("all");
 
     // Form state
     const [showForm, setShowForm] = useState(false);
@@ -121,9 +129,20 @@ export function OffersClient() {
         });
     }, [offers, search, activeCategory]);
 
+    const sourceFilteredOffers = useMemo(
+        () => filteredOffers.filter((offer) => matchesContentSource(getOfferSource(offer), sourceFilter)),
+        [filteredOffers, sourceFilter]
+    );
+
     // Unique categories from data
     const categories = useMemo(() => {
-        const cats = Array.from(new Set(offers.map(o => o.category || "Other").filter(Boolean)));
+        const cats = Array.from(
+            new Set(
+                offers
+                    .map((o) => o.category || "Other")
+                    .filter((category) => !!category && normalizeContentSource(category) !== "ads_campaign")
+            )
+        );
         return ["All", ...cats.sort()];
     }, [offers]);
 
@@ -290,6 +309,26 @@ export function OffersClient() {
                                 )}
                             >
                                 {cat}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mr-1">
+                            Source
+                        </span>
+                        {(["all", "post", "ads_campaign"] as ContentSourceFilter[]).map(source => (
+                            <button
+                                key={source}
+                                onClick={() => setSourceFilter(source)}
+                                className={cn(
+                                    "px-3 py-1 rounded-full text-xs font-medium transition-colors border",
+                                    sourceFilter === source
+                                        ? "bg-violet-600 text-white border-transparent"
+                                        : "text-slate-500 dark:text-slate-400 border-slate-200 dark:border-white/10 hover:border-violet-300 hover:text-violet-600"
+                                )}
+                            >
+                                {getContentSourceLabel(source)}
                             </button>
                         ))}
                     </div>
@@ -485,7 +524,7 @@ export function OffersClient() {
                 )}
 
                 {/* ── Offers Grid ── */}
-                {filteredOffers.length === 0 && !showForm ? (
+                {sourceFilteredOffers.length === 0 && !showForm ? (
                     <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-3">
                         <Gift className="w-12 h-12 opacity-20" />
                         <p className="text-sm">
@@ -496,7 +535,7 @@ export function OffersClient() {
                     </div>
                 ) : viewMode === "cards" ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
-                        {filteredOffers.map(offer => (
+                        {sourceFilteredOffers.map(offer => (
                             <OfferCard
                                 key={offer.id}
                                 offer={offer}
@@ -509,7 +548,7 @@ export function OffersClient() {
                 ) : (
                     /* ── List View ── */
                     <div className="flex flex-col gap-2">
-                        {filteredOffers.map(offer => (
+                        {sourceFilteredOffers.map(offer => (
                             <div
                                 key={offer.id}
                                 className="flex items-center gap-4 p-4 rounded-xl bg-white dark:bg-[#111118] border border-slate-200 dark:border-white/5 hover:border-violet-300 dark:hover:border-violet-500/30 transition-all"

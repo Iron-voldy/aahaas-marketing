@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMysqlPool } from "@/lib/mysql";
 import { getSessionUser } from "@/lib/session";
+import { ensureIgnoredColumn } from "@/lib/reportMappings";
 
 /**
  * GET /api/reports/posts?from=YYYY-MM-DD&to=YYYY-MM-DD&source=fb_post&category=package
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
     const category = url.searchParams.get("category"); // package, seasonal_offer, general
 
     const pool = getMysqlPool();
+    await ensureIgnoredColumn(pool);
 
     let query = `
         SELECT
@@ -30,7 +32,7 @@ export async function GET(request: Request) {
             p.three_sec_views, p.one_min_views, p.seconds_viewed, p.avg_seconds_viewed,
             p.profile_visits, p.replies, p.navigation, p.follows,
             p.ad_impressions, p.ad_cpm, p.estimated_earnings,
-            p.detected_category, p.detected_country, p.imported_at,
+            p.detected_category, p.detected_country, p.imported_at, p.is_ignored,
             m.target_type, m.target_firebase_id, m.match_method, m.confidence,
             COALESCE(
                 JSON_UNQUOTE(JSON_EXTRACT(pd.data, '$.imageUrl')),
@@ -46,6 +48,7 @@ export async function GET(request: Request) {
         LEFT JOIN post_package_mapping m ON p.id = m.post_id
         LEFT JOIN pkg_data pd ON m.target_firebase_id = pd.id
         WHERE p.rn = 1
+          AND p.is_ignored = 0
     `;
     const params: (string | number)[] = [];
 
@@ -98,6 +101,7 @@ export async function GET(request: Request) {
             FROM social_media_posts p2
         ) p
         WHERE p.rn = 1
+          AND p.is_ignored = 0
     `;
     const summaryParams: (string | number)[] = [];
     if (from) { summaryQuery += " AND p.publish_time >= ?"; summaryParams.push(from + " 00:00:00"); }

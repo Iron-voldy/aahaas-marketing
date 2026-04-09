@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS social_media_posts (
     -- Identification results
     has_package_hashtag TINYINT(1)      DEFAULT 0,
     detected_category   ENUM('package','seasonal_offer','general') DEFAULT 'general',
+    is_ignored          TINYINT(1)      DEFAULT 0,
     detected_country    VARCHAR(100),
     hashtags            TEXT,
 
@@ -84,6 +85,7 @@ CREATE TABLE IF NOT EXISTS social_media_posts (
     INDEX idx_source_post  (source_type, post_id),
     INDEX idx_publish_time (publish_time),
     INDEX idx_category     (detected_category),
+    INDEX idx_is_ignored   (is_ignored),
 
     FOREIGN KEY (import_session_id) REFERENCES import_sessions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

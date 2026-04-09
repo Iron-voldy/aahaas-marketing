@@ -21,6 +21,7 @@ export interface AdCampaign {
     reporting_starts: string | null;
     reporting_ends: string | null;
     ad_name: string;
+    objective: string | null;
     ad_delivery: string | null;
     results: number;
     result_indicator: string | null;
@@ -32,6 +33,8 @@ export interface AdCampaign {
     amount_spent_usd: number;
     ends: string | null;
     impressions: number;
+    views: number;
+    engagements: number;
     cpm_usd: number;
     link_clicks: number;
     cpc_link_click_usd: number;
@@ -98,7 +101,94 @@ function resultLabel(indicator: string | null) {
     if (indicator.includes("messaging_conversation")) return "Conversations";
     if (indicator.includes("post_interaction")) return "Post Interactions";
     if (indicator.includes("link_click")) return "Link Clicks";
+    if (indicator.includes("video_view") || indicator.includes("thruplay")) return "Views";
     return "Results";
+}
+
+function titleize(value: string) {
+    return value
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function objectiveLabel(ad: AdCampaign): string {
+    if (ad.objective?.trim()) return ad.objective.trim();
+    if (ad.result_indicator?.trim()) return titleize(ad.result_indicator);
+    return "Not Set";
+}
+
+function viewsValue(ad: AdCampaign): number {
+    if (ad.views > 0) return ad.views;
+    if (ad.result_indicator?.includes("video_view") || ad.result_indicator?.includes("thruplay")) {
+        return ad.results;
+    }
+    return 0;
+}
+
+function engagementsValue(ad: AdCampaign): number {
+    if (ad.engagements > 0) return ad.engagements;
+    if (ad.result_indicator?.includes("post_interaction")) {
+        return ad.results;
+    }
+    return ad.clicks_all;
+}
+
+function parseAdDate(value: string | null): Date | null {
+    if (!value) return null;
+    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(value)
+        ? `${value}T00:00:00+05:30`
+        : value;
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatAdDateTimeSL(value: string | null): string {
+    const date = parseAdDate(value);
+    if (!date) return "Not set";
+    const parts = new Intl.DateTimeFormat("sv-SE", {
+        timeZone: "Asia/Colombo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    }).formatToParts(date);
+    const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${byType.year}-${byType.month}-${byType.day} : ${byType.hour}:${byType.minute}`;
+}
+
+function dateRangeSummary(ad: AdCampaign) {
+    const start = parseAdDate(ad.reporting_starts);
+    const end = parseAdDate(ad.reporting_ends || ad.ends);
+
+    const startLabel = formatAdDateTimeSL(ad.reporting_starts);
+    const endLabel = formatAdDateTimeSL(ad.reporting_ends || ad.ends);
+
+    if (!start && !end) {
+        return {
+            startLabel,
+            endLabel,
+            durationLabel: "Dates unavailable",
+        };
+    }
+
+    if (start && end) {
+        const diffDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+        return {
+            startLabel,
+            endLabel,
+            durationLabel: `${diffDays} day${diffDays === 1 ? "" : "s"}`,
+        };
+    }
+
+    return {
+        startLabel,
+        endLabel,
+        durationLabel: start ? "Start date only" : "End date only",
+    };
 }
 
 function normalizeImageUrls(value: unknown): string[] {
@@ -151,10 +241,13 @@ function normalizeAdCampaign(ad: Record<string, unknown>): AdCampaign {
         reporting_starts: (ad.reporting_starts as string | null) ?? null,
         reporting_ends: (ad.reporting_ends as string | null) ?? null,
         ad_name: String(ad.ad_name ?? ""),
+        objective: (ad.objective as string | null) ?? null,
         ad_delivery: (ad.ad_delivery as string | null) ?? null,
         result_indicator: (ad.result_indicator as string | null) ?? null,
         ad_set_budget: (ad.ad_set_budget as string | null) ?? null,
         ends: (ad.ends as string | null) ?? null,
+        views: Number(ad.views) || 0,
+        engagements: Number(ad.engagements) || 0,
         created_at: String(ad.created_at ?? ""),
     };
 }
@@ -172,12 +265,15 @@ function fileToDataUrl(file: File): Promise<string> {
 function exportAdToXlsx(ad: AdCampaign) {
     const data = [
         { Metric: "Ad Name", Value: ad.ad_name },
+        { Metric: "Objective", Value: objectiveLabel(ad) },
         { Metric: "Reporting Period", Value: `${ad.reporting_starts ?? ""} → ${ad.reporting_ends ?? ""}` },
         { Metric: "Delivery Status", Value: ad.ad_delivery ?? "" },
         { Metric: "Results", Value: ad.results },
         { Metric: "Result Type", Value: resultLabel(ad.result_indicator) },
         { Metric: "Reach", Value: ad.reach },
         { Metric: "Impressions", Value: ad.impressions },
+        { Metric: "Views", Value: viewsValue(ad) },
+        { Metric: "Engagements", Value: engagementsValue(ad) },
         { Metric: "Frequency", Value: ad.frequency },
         { Metric: "Amount Spent (USD)", Value: ad.amount_spent_usd },
         { Metric: "Cost Per Result (USD)", Value: ad.cost_per_result },
@@ -201,6 +297,7 @@ function exportAdToXlsx(ad: AdCampaign) {
 function exportAllToXlsx(ads: AdCampaign[]) {
     const data = ads.map((ad) => ({
         "Ad Name": ad.ad_name,
+        "Objective": objectiveLabel(ad),
         "Starts": ad.reporting_starts ?? "",
         "Ends": ad.reporting_ends ?? "",
         "Delivery": ad.ad_delivery ?? "",
@@ -208,6 +305,8 @@ function exportAllToXlsx(ads: AdCampaign[]) {
         "Result Type": resultLabel(ad.result_indicator),
         "Reach": ad.reach,
         "Impressions": ad.impressions,
+        "Views": viewsValue(ad),
+        "Engagements": engagementsValue(ad),
         "Frequency": Number(ad.frequency),
         "Amount Spent (USD)": Number(ad.amount_spent_usd),
         "Cost Per Result (USD)": Number(ad.cost_per_result),
@@ -294,17 +393,22 @@ function AdDetailModal({
     const imageInputRef = useRef<HTMLInputElement>(null);
 
     const metrics = [
+        { label: "Objective", value: objectiveLabel(ad), icon: Megaphone, color: "text-violet-400" },
+        { label: "Start Date", value: formatAdDateTimeSL(ad.reporting_starts), icon: Calendar, color: "text-sky-400" },
+        { label: "End Date", value: formatAdDateTimeSL(ad.reporting_ends || ad.ends), icon: Calendar, color: "text-amber-400" },
         { label: "Amount Spent", value: fmtUsd(ad.amount_spent_usd), icon: DollarSign, color: "text-emerald-400" },
-        { label: "Reach", value: fmt(ad.reach), icon: Users, color: "text-blue-400" },
-        { label: "Impressions", value: fmt(ad.impressions), icon: Eye, color: "text-violet-400" },
-        { label: "Frequency", value: fmt(ad.frequency, 2), icon: BarChart2, color: "text-cyan-400" },
-        { label: resultLabel(ad.result_indicator), value: fmt(ad.results), icon: TrendingUp, color: "text-pink-400" },
         { label: "Cost / Result", value: fmtUsd(ad.cost_per_result), icon: DollarSign, color: "text-orange-400" },
-        { label: "CPM", value: fmtUsd(ad.cpm_usd), icon: BarChart2, color: "text-indigo-400" },
+        { label: "Impressions", value: fmt(ad.impressions), icon: Eye, color: "text-violet-400" },
+        { label: "Reach", value: fmt(ad.reach), icon: Users, color: "text-blue-400" },
+        { label: "Views", value: fmt(viewsValue(ad)), icon: Eye, color: "text-cyan-400" },
+        { label: "Clicks", value: fmt(ad.clicks_all), icon: MousePointerClick, color: "text-yellow-400" },
+        { label: "Engagements", value: fmt(engagementsValue(ad)), icon: TrendingUp, color: "text-fuchsia-400" },
+        { label: resultLabel(ad.result_indicator), value: fmt(ad.results), icon: TrendingUp, color: "text-pink-400" },
+        { label: "Frequency", value: fmt(ad.frequency, 2), icon: BarChart2, color: "text-cyan-400" },
         { label: "Link Clicks", value: fmt(ad.link_clicks), icon: MousePointerClick, color: "text-teal-400" },
         { label: "CTR (Link)", value: fmtPct(ad.ctr_link_click), icon: TrendingUp, color: "text-lime-400" },
-        { label: "Clicks (All)", value: fmt(ad.clicks_all), icon: MousePointerClick, color: "text-yellow-400" },
         { label: "CTR (All)", value: fmtPct(ad.ctr_all), icon: TrendingUp, color: "text-rose-400" },
+        { label: "CPM", value: fmtUsd(ad.cpm_usd), icon: BarChart2, color: "text-indigo-400" },
         { label: "CPC (Link)", value: fmtUsd(ad.cpc_link_click_usd), icon: DollarSign, color: "text-sky-400" },
         { label: "Bookings", value: fmt(ad.booking_count), icon: BookOpen, color: "text-emerald-300" },
     ];
@@ -372,8 +476,13 @@ function AdDetailModal({
                             {deliveryBadge(ad.ad_delivery)}
                         </div>
                         <h2 className="text-lg font-bold text-white leading-snug">{ad.ad_name}</h2>
-                        {ad.reporting_starts && (
-                            <p className="text-xs text-slate-500 mt-1">{ad.reporting_starts} → {ad.reporting_ends}</p>
+                        {(ad.reporting_starts || ad.reporting_ends || ad.ends) && (
+                            <p className="text-xs text-slate-500 mt-1">
+                                {dateRangeSummary(ad).startLabel} to {dateRangeSummary(ad).endLabel} (Sri Lanka time)
+                            </p>
+                        )}
+                        {false && ad.reporting_starts && (
+                            <p className="text-xs text-slate-500 mt-1">{formatAdDateTimeSL(ad.reporting_starts)} → {formatAdDateTimeSL(ad.reporting_ends)}</p>
                         )}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -573,6 +682,7 @@ export function AdsClient() {
     const [ads, setAds] = useState<AdCampaign[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [savingAdId, setSavingAdId] = useState<number | null>(null);
+    const [promotingAdId, setPromotingAdId] = useState<number | null>(null);
     const [uploading, setUploading] = useState(false);
     const [uploadMsg, setUploadMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
     const [search, setSearch] = useState("");
@@ -652,6 +762,34 @@ export function AdsClient() {
             throw error;
         } finally {
             setSavingAdId(null);
+        }
+    };
+
+    const handleAddToCategory = async (
+        adId: number,
+        category: "package" | "seasonal_offer"
+    ) => {
+        setPromotingAdId(adId);
+        try {
+            const res = await fetch("/api/ads/categorize", {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ adId, category }),
+            });
+            const data = await res.json().catch(() => null) as { error?: string; mode?: "created" | "updated" } | null;
+            if (!res.ok) throw new Error(data?.error || "Failed to add ad campaign");
+
+            const noun = category === "package" ? "package" : "offer";
+            const verb = data?.mode === "updated" ? "Updated" : "Added";
+            setUploadMsg({ type: "ok", text: `${verb} this ad campaign in ${noun}s` });
+        } catch (error) {
+            setUploadMsg({
+                type: "err",
+                text: error instanceof Error ? error.message : "Failed to add ad campaign",
+            });
+        } finally {
+            setPromotingAdId(null);
         }
     };
 
@@ -1104,7 +1242,10 @@ export function AdsClient() {
                                     <AdCard key={ad.id} ad={ad}
                                         onClick={() => setSelectedAd(ad)}
                                         onDelete={() => handleDeleteAd(ad.id)}
-                                        onExport={() => exportAdToXlsx(ad)} />
+                                        onExport={() => exportAdToXlsx(ad)}
+                                        onAddToPackage={() => handleAddToCategory(ad.id, "package")}
+                                        onAddToOffer={() => handleAddToCategory(ad.id, "seasonal_offer")}
+                                        isPromoting={promotingAdId === ad.id} />
                                 ))}
                             </div>
                         )}
@@ -1118,15 +1259,16 @@ export function AdsClient() {
                                             {(
                                                 [
                                                     { key: "ad_name" as keyof AdCampaign, label: "Ad Name" },
-                                                    { key: "amount_spent_usd" as keyof AdCampaign, label: "Spend ($)" },
-                                                    { key: "reach" as keyof AdCampaign, label: "Reach" },
-                                                    { key: "impressions" as keyof AdCampaign, label: "Impr." },
-                                                    { key: "results" as keyof AdCampaign, label: "Results" },
-                                                    { key: "booking_count" as keyof AdCampaign, label: "Bookings" },
+                                                    { key: "objective" as keyof AdCampaign, label: "Objective" },
+                                                    { key: "reporting_starts" as keyof AdCampaign, label: "Start" },
+                                                    { key: "reporting_ends" as keyof AdCampaign, label: "End" },
                                                     { key: "cost_per_result" as keyof AdCampaign, label: "CPR ($)" },
-                                                    { key: "ctr_link_click" as keyof AdCampaign, label: "CTR%" },
-                                                    { key: "cpm_usd" as keyof AdCampaign, label: "CPM ($)" },
+                                                    { key: "amount_spent_usd" as keyof AdCampaign, label: "Spend ($)" },
+                                                    { key: "impressions" as keyof AdCampaign, label: "Impr." },
+                                                    { key: "reach" as keyof AdCampaign, label: "Reach" },
+                                                    { key: "views" as keyof AdCampaign, label: "Views" },
                                                     { key: "link_clicks" as keyof AdCampaign, label: "Clicks" },
+                                                    { key: "engagements" as keyof AdCampaign, label: "Engagements" },
                                                 ] as { key: keyof AdCampaign; label: string }[]
                                             ).map(({ key, label }) => (
                                                 <th key={key}
@@ -1153,22 +1295,34 @@ export function AdsClient() {
                                                     <p className="text-white text-xs font-medium truncate">{ad.ad_name}</p>
                                                     <p className="text-slate-500 text-[10px] mt-0.5">{deliveryBadge(ad.ad_delivery)}</p>
                                                 </td>
+                                                <td className="px-4 py-3 text-slate-300 text-xs whitespace-nowrap">{objectiveLabel(ad)}</td>
+                                                <td className="px-4 py-3 text-slate-300 text-xs whitespace-nowrap">{formatAdDateTimeSL(ad.reporting_starts)}</td>
+                                                <td className="px-4 py-3 text-slate-300 text-xs whitespace-nowrap">{formatAdDateTimeSL(ad.reporting_ends || ad.ends)}</td>
+                                                <td className="px-4 py-3 text-slate-300 text-xs whitespace-nowrap">{fmtUsd(Number(ad.cost_per_result))}</td>
                                                 <td className="px-4 py-3 text-emerald-400 font-semibold text-xs whitespace-nowrap">{fmtUsd(Number(ad.amount_spent_usd))}</td>
-                                                <td className="px-4 py-3 text-slate-300 text-xs">{fmt(Number(ad.reach))}</td>
                                                 <td className="px-4 py-3 text-slate-300 text-xs">{fmt(Number(ad.impressions))}</td>
-                                                <td className="px-4 py-3 text-pink-400 font-semibold text-xs">{fmt(Number(ad.results))}</td>
-                                                <td className="px-4 py-3 text-emerald-300 text-xs">
-                                                    <div className="inline-flex items-center gap-1">
-                                                        <BookOpen className="w-3.5 h-3.5" />
-                                                        {fmt(Number(ad.booking_count))}
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 text-slate-300 text-xs">{fmtUsd(Number(ad.cost_per_result))}</td>
-                                                <td className="px-4 py-3 text-cyan-400 text-xs">{fmtPct(Number(ad.ctr_link_click))}</td>
-                                                <td className="px-4 py-3 text-slate-300 text-xs">{fmtUsd(Number(ad.cpm_usd))}</td>
+                                                <td className="px-4 py-3 text-slate-300 text-xs">{fmt(Number(ad.reach))}</td>
+                                                <td className="px-4 py-3 text-slate-300 text-xs">{fmt(viewsValue(ad))}</td>
                                                 <td className="px-4 py-3 text-slate-300 text-xs">{fmt(Number(ad.link_clicks))}</td>
+                                                <td className="px-4 py-3 text-slate-300 text-xs">{fmt(engagementsValue(ad))}</td>
                                                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                                    <div className="flex items-center gap-1">
+                                                    <div className="flex items-center gap-1 flex-wrap">
+                                                        <button
+                                                            onClick={() => handleAddToCategory(ad.id, "package")}
+                                                            disabled={promotingAdId === ad.id}
+                                                            className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors disabled:opacity-40 whitespace-nowrap"
+                                                            title="Add to Packages"
+                                                        >
+                                                            Package
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleAddToCategory(ad.id, "seasonal_offer")}
+                                                            disabled={promotingAdId === ad.id}
+                                                            className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/20 transition-colors disabled:opacity-40 whitespace-nowrap"
+                                                            title="Add to Offers"
+                                                        >
+                                                            Offer
+                                                        </button>
                                                         <button onClick={() => exportAdToXlsx(ad)}
                                                             className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors" title="Export XLSX">
                                                             <Download className="w-3.5 h-3.5" />
@@ -1205,17 +1359,22 @@ export function AdsClient() {
 
 // ─── Ad card subcomponent ──────────────────────────────────────────────────────
 function AdCard({
-    ad, onClick, onDelete, onExport,
+    ad, onClick, onDelete, onExport, onAddToPackage, onAddToOffer, isPromoting,
 }: {
     ad: AdCampaign;
     onClick: () => void;
     onDelete: () => void;
     onExport: () => void;
+    onAddToPackage: () => void;
+    onAddToOffer: () => void;
+    isPromoting: boolean;
 }) {
     const efficiency = ad.cost_per_result > 0
         ? ad.cost_per_result < 0.5 ? "Excellent" : ad.cost_per_result < 1 ? "Good" : "High Cost"
         : null;
     const effColor = efficiency === "Excellent" ? "text-emerald-400" : efficiency === "Good" ? "text-cyan-400" : "text-orange-400";
+    const dateSummary = dateRangeSummary(ad);
+    const bookingTotal = fmt(Number(ad.booking_count));
 
     return (
         <div
@@ -1258,11 +1417,16 @@ function AdCard({
                     {efficiency && (
                         <span className={`text-[10px] font-semibold ${effColor}`}>{efficiency} CPR</span>
                     )}
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-300">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-300">
                         <BookOpen className="w-3 h-3" />
-                        {fmt(Number(ad.booking_count))} bookings
+                        {bookingTotal} bookings
                     </span>
-                    {ad.reporting_starts && (
+                    {(ad.reporting_starts || ad.reporting_ends || ad.ends) && (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-slate-300">
+                            {dateSummary.durationLabel}
+                        </span>
+                    )}
+                    {false && ad.reporting_starts && (
                         <span className="text-[10px] text-slate-600">{ad.reporting_starts} → {ad.reporting_ends}</span>
                     )}
                 </div>
@@ -1271,12 +1435,15 @@ function AdCard({
             {/* Metrics grid */}
             <div className="p-4 grid grid-cols-3 gap-2">
                 {[
-                    { label: "Spent", value: fmtUsd(Number(ad.amount_spent_usd)), color: "text-emerald-400" },
-                    { label: "Reach", value: fmt(Number(ad.reach)), color: "text-blue-400" },
-                    { label: resultLabel(ad.result_indicator), value: fmt(Number(ad.results)), color: "text-pink-400" },
+                    { label: "Cost Per Result", value: fmtUsd(Number(ad.cost_per_result)), color: "text-orange-400" },
+                    { label: "Amount Spent", value: fmtUsd(Number(ad.amount_spent_usd)), color: "text-emerald-400" },
                     { label: "Impressions", value: fmt(Number(ad.impressions)), color: "text-violet-400" },
-                    { label: "CTR", value: fmtPct(Number(ad.ctr_link_click)), color: "text-cyan-400" },
-                    { label: "CPM", value: fmtUsd(Number(ad.cpm_usd)), color: "text-orange-400" },
+                    { label: "Reach", value: fmt(Number(ad.reach)), color: "text-blue-400" },
+                    { label: "Views", value: fmt(viewsValue(ad)), color: "text-cyan-400" },
+                    { label: "Clicks", value: fmt(Number(ad.link_clicks)), color: "text-yellow-400" },
+                    { label: "Engagements", value: fmt(engagementsValue(ad)), color: "text-pink-400" },
+                    { label: resultLabel(ad.result_indicator), value: fmt(Number(ad.results)), color: "text-fuchsia-400" },
+                    { label: "CTR", value: fmtPct(Number(ad.ctr_link_click)), color: "text-lime-400" },
                 ].map(({ label, value, color }) => (
                     <div key={label} className="rounded-lg bg-white/3 p-2">
                         <p className={`text-xs font-bold ${color}`}>{value}</p>
@@ -1287,12 +1454,58 @@ function AdCard({
 
             {/* Footer */}
             <div className="px-4 pb-4">
-                <div className="flex items-center justify-between text-[10px] text-slate-600">
-                    <span>Cost/Result: <span className="text-slate-400 font-semibold">{fmtUsd(Number(ad.cost_per_result))}</span></span>
-                    <span className="inline-flex items-center gap-1">
-                        <BookOpen className="w-3 h-3 text-emerald-300" />
-                        <span className="text-slate-400 font-semibold">{fmt(Number(ad.booking_count))}</span>
-                    </span>
+                <div className="flex items-center gap-2 flex-wrap mb-3" onClick={(e) => e.stopPropagation()}>
+                    <button
+                        onClick={onAddToPackage}
+                        disabled={isPromoting}
+                        className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors disabled:opacity-40 whitespace-nowrap"
+                    >
+                        Add to Package
+                    </button>
+                    <button
+                        onClick={onAddToOffer}
+                        disabled={isPromoting}
+                        className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/20 transition-colors disabled:opacity-40 whitespace-nowrap"
+                    >
+                        Add to Offer
+                    </button>
+                    {isPromoting && (
+                        <span className="text-[10px] text-slate-400">Saving...</span>
+                    )}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
+                        <p className="text-emerald-200/80">Bookings</p>
+                        <p className="mt-1 text-lg font-bold text-white">{bookingTotal}</p>
+                        <p className="mt-1 text-[10px] text-emerald-200/70">Tracked from this ad campaign</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-slate-400">Schedule</p>
+                        <p className="mt-1 text-sm font-semibold text-white">{dateSummary.durationLabel}</p>
+                        <p className="mt-1 text-[10px] text-slate-400">Sri Lanka time</p>
+                    </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
+                    <div className="rounded-lg bg-white/3 p-2">
+                        <p className="text-slate-500">Objective</p>
+                        <p className="text-white font-semibold mt-0.5">{objectiveLabel(ad)}</p>
+                    </div>
+                    <div className="rounded-lg bg-white/3 p-2.5">
+                        <p className="text-slate-500">Cost Per Result</p>
+                        <p className="text-white font-semibold mt-0.5">{fmtUsd(Number(ad.cost_per_result))}</p>
+                    </div>
+                    <div className="rounded-lg bg-white/3 p-2.5">
+                        <p className="text-slate-500">Start Time</p>
+                        <p className="text-white font-semibold mt-0.5">{dateSummary.startLabel}</p>
+                    </div>
+                    <div className="rounded-lg bg-white/3 p-2.5">
+                        <p className="text-slate-500">End Time</p>
+                        <p className="text-white font-semibold mt-0.5">{dateSummary.endLabel}</p>
+                    </div>
+                    <div className="hidden rounded-lg bg-white/3 p-2">
+                        <p className="text-slate-500">Date Range</p>
+                        <p className="text-white font-semibold mt-0.5">{ad.reporting_starts || "â€”"} to {ad.reporting_ends || ad.ends || "â€”"}</p>
+                    </div>
                 </div>
             </div>
         </div>
