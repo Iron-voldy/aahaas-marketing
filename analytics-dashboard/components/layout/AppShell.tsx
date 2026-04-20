@@ -23,7 +23,7 @@ import {
     Megaphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -70,7 +70,7 @@ function NavLink({
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-violet-400 rounded-r-full shadow-[0_0_8px_rgba(167,139,250,0.8)]" />
             )}
             <div className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-200",
+                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all duration-200",
                 isActive
                     ? "bg-violet-500 shadow-lg shadow-violet-500/40"
                     : "bg-white/10 group-hover:bg-white/20"
@@ -81,7 +81,7 @@ function NavLink({
                 <div className="truncate leading-tight">{label}</div>
                 {isActive && <div className="text-[10px] text-white/50 font-normal truncate">{desc}</div>}
             </div>
-            {isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto flex-shrink-0 text-violet-300" />}
+            {isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto shrink-0 text-violet-300" />}
         </Link>
     );
 }
@@ -101,14 +101,14 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
                     priority
                 />
                 {/* Overlay gradient for readability */}
-                <div className="absolute inset-0 bg-gradient-to-b from-[#0d0d2b]/90 via-[#1a0a3c]/85 to-[#0d0d2b]/95" />
+                <div className="absolute inset-0 bg-linear-to-b from-[#0d0d2b]/90 via-[#1a0a3c]/85 to-[#0d0d2b]/95" />
             </div>
 
             {/* Content */}
             <div className="relative z-10 flex flex-col h-full px-4 py-5 min-h-0">
                 {/* Logo */}
                 <div className="flex items-center gap-3 px-2 mb-7">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg shadow-violet-500/30 flex-shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-linear-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg shadow-violet-500/30 shrink-0">
                         <Activity className="w-5 h-5 text-white" />
                     </div>
                     <div>
@@ -188,14 +188,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex h-screen bg-slate-100 dark:bg-[#07070f] overflow-hidden">
             {/* Desktop Sidebar */}
-            <div className="hidden lg:flex flex-col flex-shrink-0 shadow-2xl shadow-black/40" style={{ width: 256 }}>
+            <div className="hidden lg:flex flex-col shrink-0 shadow-2xl shadow-black/40" style={{ width: 256 }}>
                 <Sidebar />
             </div>
 
             {/* Main content area */}
             <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
                 {/* Top Header */}
-                <header className="flex items-center justify-between px-4 lg:px-6 h-14 border-b border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d0d1a] flex-shrink-0 shadow-sm">
+                <header className="flex items-center justify-between px-4 lg:px-6 h-14 border-b border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d0d1a] shrink-0 shadow-sm">
                     {/* Mobile logo + hamburger */}
                     <div className="flex items-center gap-3 lg:hidden">
                         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -205,11 +205,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                                 </Button>
                             </SheetTrigger>
                             <SheetContent side="left" className="p-0 w-64 border-0">
+                                <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                                 <Sidebar onClose={() => setMobileOpen(false)} />
                             </SheetContent>
                         </Sheet>
                         <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center">
+                            <div className="w-7 h-7 rounded-lg bg-linear-to-br from-violet-500 to-purple-700 flex items-center justify-center">
                                 <TrendingUp className="w-3.5 h-3.5 text-white" />
                             </div>
                             <span className="font-bold text-slate-900 dark:text-white text-sm">
@@ -253,7 +254,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         <ThemeToggle />
                         {/* User avatar */}
                         <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-white/10 ml-1">
-                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold shadow">
+                            <div className="w-7 h-7 rounded-lg bg-linear-to-br from-violet-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold shadow">
                                 A
                             </div>
                             <div className="hidden sm:block">

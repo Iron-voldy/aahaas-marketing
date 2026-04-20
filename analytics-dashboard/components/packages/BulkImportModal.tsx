@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import {
     Dialog,
     DialogContent,
@@ -23,8 +24,7 @@ import {
     Gift,
 } from "lucide-react";
 import type { Row } from "@/lib/types";
-import type { SeasonalOffer } from "@/lib/db";
-import { updatePackage, updateOffer, getOffers } from "@/lib/db";
+import { updatePackage, updateOffer } from "@/lib/db";
 import type {
     CsvPost,
     SourceType,
@@ -100,7 +100,7 @@ const SOURCE_COLORS: Record<SourceType, string> = {
 };
 
 function detectSourceType(headers: string[]): SourceType | null {
-    const h = headers.map((x) => x.toLowerCase().trim());
+    const h = headers.map((x) => normalizeHeader(x));
     if (h.includes("video asset id")) return "fb_video";
     if (h.includes("title") && h.includes("page id")) return "fb_post";
     if (h.includes("account id") && h.includes("navigation")) return "ig_story";
@@ -119,40 +119,114 @@ function toNum(v: unknown): number {
     return isNaN(n) ? 0 : n;
 }
 
+function normalizeHeader(key: string): string {
+    return String(key || "")
+        .replace(/^\uFEFF/, "")
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, " ");
+}
+
+function getRowValue(row: Record<string, string>, keys: string[]): string {
+    const normalized = new Map<string, string>();
+    for (const [k, v] of Object.entries(row)) {
+        normalized.set(normalizeHeader(k), v ?? "");
+    }
+    for (const key of keys) {
+        const found = normalized.get(normalizeHeader(key));
+        if (found !== undefined && String(found).trim() !== "") return String(found);
+    }
+    return "";
+}
+
+function makeFallbackPostId(sourceType: SourceType, row: Record<string, string>): string {
+    const permalink = getRowValue(row, ["Permalink", "Post permalink", "URL"]);
+    const publish = getRowValue(row, ["Publish time", "Published time", "Date"]);
+    const title = getRowValue(row, ["Title", "Description", "Caption"]);
+    const seed = `${sourceType}|${permalink}|${publish}|${title}`.toLowerCase().trim();
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+        hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
+    }
+    return `fallback_${sourceType}_${Math.abs(hash)}`;
+}
+
+async function parseUploadedFile(file: File): Promise<{ headers: string[]; rows: Record<string, string>[] }> {
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: "array" });
+        const firstSheet = wb.SheetNames[0];
+        if (!firstSheet) return { headers: [], rows: [] };
+        const ws = wb.Sheets[firstSheet];
+        const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, {
+            defval: "",
+            raw: false,
+        });
+        const rows = rawRows.map((r) => {
+            const out: Record<string, string> = {};
+            for (const [k, v] of Object.entries(r)) out[String(k)] = String(v ?? "");
+            return out;
+        });
+        const headerSet = new Set<string>();
+        rows.forEach((r) => Object.keys(r).forEach((k) => headerSet.add(k)));
+        return { headers: Array.from(headerSet), rows };
+    }
+
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target?.result as string;
+            const parsed = Papa.parse<Record<string, string>>(text, {
+                header: true,
+                skipEmptyLines: true,
+            });
+            resolve({
+                headers: parsed.meta.fields || [],
+                rows: parsed.data,
+            });
+        };
+        reader.onerror = () => reject(reader.error || new Error("Failed to read file"));
+        reader.readAsText(file);
+    });
+}
+
 function extractPosts(
     rows: Record<string, string>[],
     sourceType: SourceType,
 ): CsvPost[] {
     return rows.map((r) => {
+        const explicitPostId = getRowValue(r, ["Post ID", "Video asset ID", "Media ID"]);
+        const postId = explicitPostId || makeFallbackPostId(sourceType, r);
         const base: CsvPost = {
             sourceType,
-            postId: r["Post ID"] || r["Video asset ID"] || "",
-            pageOrAccountId: r["Page ID"] || r["Account ID"] || "",
-            title: r["Title"] || "",
-            description: r["Description"] || "",
-            publishTime: r["Publish time"] || "",
-            permalink: r["Permalink"] || "",
-            postType: r["Post type"] || "",
-            reach: toNum(r["Reach"]),
-            views: toNum(r["Views"]),
-            reactions: toNum(r["Reactions"] || r["Likes"]),
-            comments: toNum(r["Comments"]),
-            shares: toNum(r["Shares"]),
-            saves: toNum(r["Saves"]),
-            totalClicks: toNum(r["Total clicks"]),
-            linkClicks: toNum(r["Link clicks"]),
-            otherClicks: toNum(r["Other clicks"]),
-            threeSecViews: toNum(r["3-second video views"]),
-            oneMinViews: toNum(r["1-minute video views"]),
-            secondsViewed: toNum(r["Seconds viewed"]),
-            avgSecondsViewed: toNum(r["Average Seconds viewed"]),
-            profileVisits: toNum(r["Profile visits"]),
-            replies: toNum(r["Replies"]),
-            navigation: toNum(r["Navigation"]),
-            follows: toNum(r["Follows"]),
-            adImpressions: toNum(r["Ad impressions"]),
-            adCpm: toNum(r["Ad CPM (USD)"]),
-            estimatedEarnings: toNum(r["Estimated earnings (USD)"]),
+            postId,
+            pageOrAccountId: getRowValue(r, ["Page ID", "Account ID"]),
+            title: getRowValue(r, ["Title", "Caption"]),
+            description: getRowValue(r, ["Description", "Post message"]),
+            publishTime: getRowValue(r, ["Publish time", "Published time", "Date"]),
+            permalink: getRowValue(r, ["Permalink", "Post permalink", "URL"]),
+            postType: getRowValue(r, ["Post type", "Media type"]),
+            reach: toNum(getRowValue(r, ["Reach"])),
+            views: toNum(getRowValue(r, ["Views"])),
+            reactions: toNum(getRowValue(r, ["Reactions", "Likes"])),
+            comments: toNum(getRowValue(r, ["Comments"])),
+            shares: toNum(getRowValue(r, ["Shares"])),
+            saves: toNum(getRowValue(r, ["Saves"])),
+            totalClicks: toNum(getRowValue(r, ["Total clicks"])),
+            linkClicks: toNum(getRowValue(r, ["Link clicks"])),
+            otherClicks: toNum(getRowValue(r, ["Other clicks"])),
+            threeSecViews: toNum(getRowValue(r, ["3-second video views"])),
+            oneMinViews: toNum(getRowValue(r, ["1-minute video views"])),
+            secondsViewed: toNum(getRowValue(r, ["Seconds viewed"])),
+            avgSecondsViewed: toNum(getRowValue(r, ["Average Seconds viewed"])),
+            profileVisits: toNum(getRowValue(r, ["Profile visits"])),
+            replies: toNum(getRowValue(r, ["Replies"])),
+            navigation: toNum(getRowValue(r, ["Navigation"])),
+            follows: toNum(getRowValue(r, ["Follows"])),
+            adImpressions: toNum(getRowValue(r, ["Ad impressions"])),
+            adCpm: toNum(getRowValue(r, ["Ad CPM (USD)"])),
+            estimatedEarnings: toNum(getRowValue(r, ["Estimated earnings (USD)"])),
         };
         return base;
     });
@@ -163,9 +237,10 @@ function extractPosts(
 export function BulkImportModal({
     open,
     onClose,
-    packages,
+    packages: _packages,
     onUpdateSuccess,
 }: BulkImportModalProps) {
+    void _packages;
     const [step, setStep] = useState<Step>("upload");
     const [detectedFiles, setDetectedFiles] = useState<DetectedFile[]>([]);
     const [isDragging, setIsDragging] = useState(false);
@@ -196,51 +271,52 @@ export function BulkImportModal({
 
     // ── File Handling ──
     const processFiles = useCallback((fileList: FileList | File[]) => {
-        const files = Array.from(fileList).filter(
-            (f) => f.name.endsWith(".csv") || f.type === "text/csv",
-        );
+        const files = Array.from(fileList).filter((f) => {
+            const n = f.name.toLowerCase();
+            return n.endsWith(".csv") || n.endsWith(".xlsx") || n.endsWith(".xls") || f.type === "text/csv";
+        });
         if (files.length === 0) return;
 
-        const results: DetectedFile[] = [...detectedFiles];
-
-        files.forEach((file) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const text = e.target?.result as string;
-                const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
-                const headers = parsed.meta.fields || [];
-                const sourceType = detectSourceType(headers);
-
-                if (!sourceType) {
-                    setError(`Could not detect file type for: ${file.name}`);
-                    return;
+        void Promise.all(
+            files.map(async (file) => {
+                try {
+                    const parsed = await parseUploadedFile(file);
+                    const sourceType = detectSourceType(parsed.headers);
+                    if (!sourceType) {
+                        setError(`Could not detect file type for: ${file.name}`);
+                        return null;
+                    }
+                    const posts = extractPosts(parsed.rows, sourceType);
+                    return {
+                        file,
+                        sourceType,
+                        label: SOURCE_LABELS[sourceType],
+                        rowCount: posts.length,
+                        posts,
+                    } as DetectedFile;
+                } catch {
+                    setError(`Could not read file: ${file.name}`);
+                    return null;
                 }
-
-                const posts = extractPosts(
-                    parsed.data as Record<string, string>[],
-                    sourceType,
-                );
-
-                // Replace existing file of same type
-                const existingIdx = results.findIndex((f) => f.sourceType === sourceType);
-                const detected: DetectedFile = {
-                    file,
-                    sourceType,
-                    label: SOURCE_LABELS[sourceType],
-                    rowCount: posts.length,
-                    posts,
-                };
-                if (existingIdx >= 0) {
-                    results[existingIdx] = detected;
-                } else {
-                    results.push(detected);
+            }),
+        ).then((results) => {
+            const validFiles = results.filter((f): f is DetectedFile => f !== null);
+            if (validFiles.length === 0) return;
+            setDetectedFiles((prev) => {
+                const updated = [...prev];
+                for (const detected of validFiles) {
+                    const existingIdx = updated.findIndex((f) => f.sourceType === detected.sourceType);
+                    if (existingIdx >= 0) {
+                        updated[existingIdx] = detected;
+                    } else {
+                        updated.push(detected);
+                    }
                 }
-                setDetectedFiles([...results]);
-                setError(null);
-            };
-            reader.readAsText(file);
+                return updated;
+            });
+            setError(null);
         });
-    }, [detectedFiles]);
+    }, []);
 
     const handleDrop = useCallback(
         (e: React.DragEvent) => {
@@ -271,28 +347,9 @@ export function BulkImportModal({
         setError(null);
 
         try {
-            // Prepare package refs
-            const packageRefs: PackageRef[] = packages.map((pkg) => ({
-                id: pkg.id || "",
-                name: String(pkg["Package"] || pkg["package_name"] || ""),
-                country: String(pkg["Country"] || pkg["country"] || ""),
-                datePublished: String(pkg["Date Published"] || pkg["date_published"] || ""),
-            }));
-
-            // Fetch offers from MySQL
-            let offerRefs: OfferRef[] = [];
-            try {
-                const offers: SeasonalOffer[] = await getOffers();
-                offerRefs = offers.map((o) => ({
-                    id: o.id || "",
-                    name: o.name || "",
-                    category: o.category || "",
-                    datePublished: o.datePublished || "",
-                }));
-            } catch {
-                // If offers can't be fetched, continue without them
-                console.warn("Could not fetch offers, skipping offer matching");
-            }
+            // Reports-only import: do not run matching against packages/offers.
+            const packageRefs: PackageRef[] = [];
+            const offerRefs: OfferRef[] = [];
 
             // Build request
             const files: Record<string, CsvPost[]> = {};
@@ -316,12 +373,13 @@ export function BulkImportModal({
 
             const data: ApiResponse = await resp.json();
             setApiResult(data);
-            setStep("review");
+            setStep("done");
+            // User closes via "View in Reports" button which calls onUpdateSuccess → fetchPosts
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
             setStep("upload");
         }
-    }, [detectedFiles, packages]);
+    }, [detectedFiles]);
 
     // ── Apply ──
     const handleApply = useCallback(async () => {
@@ -383,7 +441,7 @@ export function BulkImportModal({
                 <div className="shrink-0 px-6 pt-6 pb-4 border-b border-slate-100 dark:border-white/5">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2.5 text-lg font-bold">
-                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                            <div className="w-9 h-9 rounded-xl bg-linear-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
                                 <UploadCloud className="h-4.5 w-4.5 text-white" />
                             </div>
                             {step === "upload" && "Import Insights"}
@@ -393,11 +451,11 @@ export function BulkImportModal({
                             {step === "done" && "Import Complete"}
                         </DialogTitle>
                         <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            {step === "upload" && "Drop your Facebook & Instagram Insights CSV exports into the slots below."}
-                            {step === "analyzing" && "Using AI + keyword matching to identify and match posts to your packages & offers..."}
+                            {step === "upload" && "Upload one or multiple Facebook/Instagram Insights CSV sheets (1 to 4 files)."}
+                            {step === "analyzing" && "Importing all uploaded post rows to Excel Reports..."}
                             {step === "review" && "Review the matched posts and metrics before applying to your database."}
                             {step === "applying" && "Updating your database with matched metrics..."}
-                            {step === "done" && "All matched metrics have been applied successfully."}
+                            {step === "done" && "All uploaded posts were imported and are now available in Reports."}
                         </DialogDescription>
                     </DialogHeader>
                 </div>
@@ -468,7 +526,7 @@ export function BulkImportModal({
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept=".csv"
+                            accept=".csv,.xlsx,.xls"
                             multiple
                             className="hidden"
                             onChange={handleFileInput}
@@ -494,7 +552,7 @@ export function BulkImportModal({
                         {/* Status bar */}
                         <div className="flex items-center justify-between text-xs py-2">
                             <span className="text-slate-400">
-                                {detectedFiles.length}/4 sheets loaded
+                                {detectedFiles.length}/4 sheets loaded (you can continue with any number)
                             </span>
                             <div className="flex gap-1">
                                 {(["fb_post", "fb_video", "ig_post", "ig_story"] as SourceType[]).map((t) => (
@@ -520,11 +578,11 @@ export function BulkImportModal({
                         <Button
                             onClick={handleAnalyze}
                             disabled={detectedFiles.length === 0}
-                            className="w-full h-11 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white rounded-xl font-semibold shadow-lg shadow-violet-500/20 disabled:opacity-40 disabled:shadow-none"
+                            className="w-full h-11 bg-linear-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white rounded-xl font-semibold shadow-lg shadow-violet-500/20 disabled:opacity-40 disabled:shadow-none"
                             size="lg"
                         >
                             <FileSpreadsheet className="mr-2 h-4 w-4" />
-                            Analyze &amp; Match with AI
+                            Upload to Reports
                         </Button>
                     </div>
                 )}
@@ -533,7 +591,7 @@ export function BulkImportModal({
                 {step === "analyzing" && (
                     <div className="flex flex-col items-center justify-center py-16 gap-5">
                         <div className="relative">
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-xl shadow-violet-500/20">
+                            <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-xl shadow-violet-500/20">
                                 <Loader2 className="h-8 w-8 animate-spin text-white" />
                             </div>
                             <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-green-400 border-2 border-white dark:border-[#111118] animate-pulse" />
@@ -543,7 +601,7 @@ export function BulkImportModal({
                                 Processing {detectedFiles.reduce((s, f) => s + f.rowCount, 0)} posts
                             </p>
                             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                                Running keyword matching + OpenAI analysis...
+                                Saving uploaded sheets to Excel Reports...
                             </p>
                         </div>
                     </div>
@@ -560,7 +618,7 @@ export function BulkImportModal({
                                 { label: "Offers", value: apiResult.offerUpdates.length, color: "from-pink-500/10 to-pink-500/5", text: "text-pink-700 dark:text-pink-300" },
                                 { label: "Unmatched", value: apiResult.stats.unmatched, color: "from-amber-500/10 to-amber-500/5", text: "text-amber-700 dark:text-amber-300" },
                             ].map((s) => (
-                                <div key={s.label} className={`rounded-xl bg-gradient-to-br ${s.color} p-3 text-center border border-white/50 dark:border-white/5`}>
+                                <div key={s.label} className={`rounded-xl bg-linear-to-br ${s.color} p-3 text-center border border-white/50 dark:border-white/5`}>
                                     <p className={`text-xl font-bold ${s.text}`}>{s.value}</p>
                                     <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wide">{s.label}</p>
                                 </div>
@@ -680,7 +738,7 @@ export function BulkImportModal({
 
                         {/* Apply Button */}
                         {(apiResult.packageUpdates.length > 0 || apiResult.offerUpdates.length > 0) && (
-                            <Button onClick={handleApply} className="w-full h-11 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-semibold shadow-lg shadow-emerald-500/20" size="lg">
+                            <Button onClick={handleApply} className="w-full h-11 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-semibold shadow-lg shadow-emerald-500/20" size="lg">
                                 <CheckCircle2 className="mr-2 h-4 w-4" />
                                 Apply {apiResult.packageUpdates.length} Packages &amp; {apiResult.offerUpdates.length} Offers
                             </Button>
@@ -693,7 +751,7 @@ export function BulkImportModal({
                     <div className="space-y-4 py-4">
                         <div className="w-full bg-slate-100 dark:bg-white/5 rounded-full h-3 overflow-hidden">
                             <div
-                                className="bg-gradient-to-r from-blue-500 to-violet-500 h-3 rounded-full transition-all duration-300 ease-out"
+                                className="bg-linear-to-r from-blue-500 to-violet-500 h-3 rounded-full transition-all duration-300 ease-out"
                                 style={{ width: `${applyProgress}%` }}
                             />
                         </div>
@@ -718,19 +776,21 @@ export function BulkImportModal({
                 {/* ── Done Step ── */}
                 {step === "done" && (
                     <div className="flex flex-col items-center py-10 gap-5">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-xl shadow-emerald-500/20">
+                        <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-xl shadow-emerald-500/20">
                             <CheckCircle2 className="h-8 w-8 text-white" />
                         </div>
                         <div className="text-center">
-                            <p className="text-lg font-bold text-slate-900 dark:text-white">Import Complete!</p>
+                            <p className="text-lg font-bold text-slate-900 dark:text-white">Upload Complete!</p>
                             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                {applyLog.filter((l) => l.ok).length} items updated successfully
-                                {applyLog.filter((l) => !l.ok).length > 0 && (
-                                    <span className="text-red-500"> &middot; {applyLog.filter((l) => !l.ok).length} failed</span>
-                                )}
+                                Imported {apiResult?.stats.total?.toLocaleString() || 0} posts to Reports
                             </p>
+                            {apiResult && (
+                                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                                    FB Posts: {apiResult.stats.fbPosts} • FB Videos: {apiResult.stats.fbVideos} • IG Posts: {apiResult.stats.igPosts} • IG Stories: {apiResult.stats.igStories}
+                                </p>
+                            )}
                         </div>
-                        <Button onClick={handleClose} variant="outline" className="rounded-xl px-6">Close</Button>
+                        <Button onClick={onUpdateSuccess} className="rounded-xl px-6 bg-linear-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700">View in Reports</Button>
                     </div>
                 )}
 

@@ -22,6 +22,24 @@ export async function GET(request: Request) {
     const pool = getMysqlPool();
     await ensureIgnoredColumn(pool);
 
+    // Diagnostic: log raw totals so we can see if data is in DB at all
+    try {
+        const [[rawCount]] = await pool.query<import("mysql2/promise").RowDataPacket[]>(
+            "SELECT COUNT(*) AS n FROM social_media_posts"
+        );
+        const [[ignoredCount]] = await pool.query<import("mysql2/promise").RowDataPacket[]>(
+            "SELECT COUNT(*) AS n FROM social_media_posts WHERE COALESCE(is_ignored,0)=1"
+        );
+        console.log(`[reports/posts] DB total=${rawCount.n}, ignored=${ignoredCount.n}`);
+    } catch (e) {
+        console.error("[reports/posts] diagnostic query failed:", e);
+    }
+
+    /*
+     * Show all non-ignored posts. The import route already deduplicates by
+     * (source_type, post_id) via UPDATE-on-existing, so a correlated MAX(id)
+     * subquery is unnecessary and breaks when old sessions left duplicate rows.
+     */
     let query = `
         SELECT
             p.id, p.import_session_id, p.source_type, p.post_id,
@@ -38,17 +56,10 @@ export async function GET(request: Request) {
                 JSON_UNQUOTE(JSON_EXTRACT(pd.data, '$.imageUrl')),
                 JSON_UNQUOTE(JSON_EXTRACT(pd.data, '$.imageUrls[0]'))
             ) AS package_image_url
-        FROM (
-            SELECT p2.*, ROW_NUMBER() OVER (
-                PARTITION BY p2.source_type, p2.post_id
-                ORDER BY p2.imported_at DESC
-            ) AS rn
-            FROM social_media_posts p2
-        ) p
+        FROM social_media_posts p
         LEFT JOIN post_package_mapping m ON p.id = m.post_id
         LEFT JOIN pkg_data pd ON m.target_firebase_id = pd.id
-        WHERE p.rn = 1
-          AND p.is_ignored = 0
+        WHERE COALESCE(p.is_ignored, 0) = 0
     `;
     const params: (string | number)[] = [];
 
@@ -69,11 +80,13 @@ export async function GET(request: Request) {
         params.push(category);
     }
 
-    query += " ORDER BY p.publish_time DESC";
+    query += " ORDER BY p.publish_time DESC LIMIT 1000";
 
     const [rows] = await pool.query(query, params);
+    const postCount = (rows as unknown[]).length;
+    console.log(`[reports/posts] returned ${postCount} posts`);
 
-    // Also get summary aggregates (deduplicated)
+    // Also get summary aggregates
     let summaryQuery = `
         SELECT
             COUNT(*) as totalPosts,
@@ -93,15 +106,8 @@ export async function GET(request: Request) {
             COUNT(CASE WHEN p.detected_category = 'package' THEN 1 END) as packagePosts,
             COUNT(CASE WHEN p.detected_category = 'seasonal_offer' THEN 1 END) as offerPosts,
             COUNT(CASE WHEN p.detected_category = 'general' THEN 1 END) as generalPosts
-        FROM (
-            SELECT p2.*, ROW_NUMBER() OVER (
-                PARTITION BY p2.source_type, p2.post_id
-                ORDER BY p2.imported_at DESC
-            ) AS rn
-            FROM social_media_posts p2
-        ) p
-        WHERE p.rn = 1
-          AND p.is_ignored = 0
+        FROM social_media_posts p
+        WHERE COALESCE(p.is_ignored, 0) = 0
     `;
     const summaryParams: (string | number)[] = [];
     if (from) { summaryQuery += " AND p.publish_time >= ?"; summaryParams.push(from + " 00:00:00"); }

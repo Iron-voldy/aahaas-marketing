@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getMysqlPool } from "@/lib/mysql";
+import { ensureIgnoredColumn } from "@/lib/reportMappings";
 import {
     processImport,
     parsePackageDate,
@@ -19,6 +20,70 @@ interface RequestBody {
     };
     packages: PackageRef[];
     offers: OfferRef[];
+}
+
+function toStr(v: unknown): string {
+    return String(v ?? "").trim();
+}
+
+function postIdentityKey(post: CsvPost): string {
+    return `${post.sourceType}::${toStr(post.postId).toLowerCase()}`;
+}
+
+function mergeDuplicatePosts(posts: CsvPost[]): CsvPost[] {
+    const byKey = new Map<string, CsvPost>();
+
+    for (const post of posts) {
+        const normalizedPostId = toStr(post.postId);
+
+        // Keep rows without post ID as-is (cannot reliably dedupe).
+        if (!normalizedPostId) {
+            byKey.set(`${post.sourceType}::no-id::${byKey.size}`, post);
+            continue;
+        }
+
+        const normalized: CsvPost = { ...post, postId: normalizedPostId };
+        const key = postIdentityKey(normalized);
+        const existing = byKey.get(key);
+
+        if (!existing) {
+            byKey.set(key, normalized);
+            continue;
+        }
+
+        // For duplicate rows in the same upload, keep the highest observed count metrics.
+        byKey.set(key, {
+            ...existing,
+            pageOrAccountId: normalized.pageOrAccountId || existing.pageOrAccountId,
+            title: normalized.title || existing.title,
+            description: normalized.description || existing.description,
+            publishTime: normalized.publishTime || existing.publishTime,
+            permalink: normalized.permalink || existing.permalink,
+            postType: normalized.postType || existing.postType,
+            reach: Math.max(existing.reach, normalized.reach),
+            views: Math.max(existing.views, normalized.views),
+            reactions: Math.max(existing.reactions, normalized.reactions),
+            comments: Math.max(existing.comments, normalized.comments),
+            shares: Math.max(existing.shares, normalized.shares),
+            saves: Math.max(existing.saves, normalized.saves),
+            totalClicks: Math.max(existing.totalClicks, normalized.totalClicks),
+            linkClicks: Math.max(existing.linkClicks, normalized.linkClicks),
+            otherClicks: Math.max(existing.otherClicks, normalized.otherClicks),
+            threeSecViews: Math.max(existing.threeSecViews, normalized.threeSecViews),
+            oneMinViews: Math.max(existing.oneMinViews, normalized.oneMinViews),
+            secondsViewed: Math.max(existing.secondsViewed, normalized.secondsViewed),
+            avgSecondsViewed: Math.max(existing.avgSecondsViewed, normalized.avgSecondsViewed),
+            profileVisits: Math.max(existing.profileVisits, normalized.profileVisits),
+            replies: Math.max(existing.replies, normalized.replies),
+            navigation: Math.max(existing.navigation, normalized.navigation),
+            follows: Math.max(existing.follows, normalized.follows),
+            adImpressions: Math.max(existing.adImpressions, normalized.adImpressions),
+            adCpm: Math.max(existing.adCpm, normalized.adCpm),
+            estimatedEarnings: Math.max(existing.estimatedEarnings, normalized.estimatedEarnings),
+        });
+    }
+
+    return Array.from(byKey.values());
 }
 
 function toMysqlDatetime(d: Date | null): string | null {
@@ -58,12 +123,14 @@ export async function POST(request: Request) {
             ...(files.ig_stories ?? []),
         ];
 
-        if (allPosts.length === 0) {
+        const mergedPosts = mergeDuplicatePosts(allPosts);
+
+        if (mergedPosts.length === 0) {
             return NextResponse.json({ error: "No posts to import" }, { status: 400 });
         }
 
         // ── 1. Run keyword-based matching algorithm (pure logic, no I/O) ──
-        const result = processImport(allPosts, packages, offers);
+        const result = processImport(mergedPosts, packages, offers);
 
         // ── 1b. AI-enhanced matching for unmatched non-general posts ──
         const unmatchedForAI = result.processedPosts
@@ -138,7 +205,7 @@ export async function POST(request: Request) {
                 }
 
                 // Re-aggregate after AI matches
-                result.packageUpdates = reAggregate(result.processedPosts, packages, "package");
+                result.packageUpdates = reAggregate(result.processedPosts, packages);
                 result.offerUpdates = reAggregateOffers(result.processedPosts, offers);
                 result.stats.matched = result.processedPosts.filter((p) => p.match !== null).length;
                 result.stats.unmatched = result.processedPosts.filter((p) => p.detectedCategory !== "general" && p.match === null).length;
@@ -154,6 +221,10 @@ export async function POST(request: Request) {
         const conn = await pool.getConnection();
 
         try {
+            // Ensure is_ignored column exists BEFORE starting any transaction.
+            // ALTER TABLE causes implicit commit in MySQL, so it must run outside a transaction.
+            await ensureIgnoredColumn(conn);
+
             await conn.beginTransaction();
 
             // Create session
@@ -172,6 +243,7 @@ export async function POST(request: Request) {
                 ],
             );
             const sessionId = (sessionResult as { insertId: number }).insertId;
+            console.log(`[import-sheets] session=${sessionId}, posts=${result.processedPosts.length} (fb_posts=${result.stats.fbPosts}, fb_videos=${result.stats.fbVideos}, ig_posts=${result.stats.igPosts}, ig_stories=${result.stats.igStories})`);
 
             // Insert posts and mappings (with deduplication)
             for (const post of result.processedPosts) {
@@ -179,6 +251,7 @@ export async function POST(request: Request) {
 
                 // Check if this post already exists (by source_type + post_id)
                 let mysqlPostId: number;
+                let isExistingPost = false;
                 if (post.postId) {
                     const [existing] = await conn.query(
                         `SELECT id FROM social_media_posts WHERE source_type = ? AND post_id = ? LIMIT 1`,
@@ -186,8 +259,9 @@ export async function POST(request: Request) {
                     );
                     const existingRows = existing as { id: number }[];
                     if (existingRows.length > 0) {
-                        // Update existing post with latest metrics
+                        // Existing post: only refresh count metrics, keep manual categorization/mapping intact.
                         mysqlPostId = existingRows[0].id;
+                        isExistingPost = true;
                         await conn.query(
                             `UPDATE social_media_posts SET
                                 import_session_id = ?, reach = ?, views = ?, reactions = ?, comments = ?,
@@ -195,8 +269,9 @@ export async function POST(request: Request) {
                                 three_sec_views = ?, one_min_views = ?, seconds_viewed = ?, avg_seconds_viewed = ?,
                                 profile_visits = ?, replies = ?, navigation = ?, follows = ?,
                                 ad_impressions = ?, ad_cpm = ?, estimated_earnings = ?,
-                                has_package_hashtag = ?, detected_category = ?, detected_country = ?, hashtags = ?
+                                is_ignored = 0
                              WHERE id = ?`,
+                            // Note: is_ignored reset to 0 so re-importing a post revives it
                             [
                                 sessionId,
                                 toInt(post.reach), toInt(post.views), toInt(post.reactions),
@@ -208,10 +283,6 @@ export async function POST(request: Request) {
                                 toInt(post.navigation), toInt(post.follows),
                                 toInt(post.adImpressions), toDec(post.adCpm),
                                 toDec(post.estimatedEarnings),
-                                post.hasPackageHashtag ? 1 : 0,
-                                post.detectedCategory,
-                                post.detectedCountry,
-                                post.hashtags.join(", "),
                                 mysqlPostId,
                             ],
                         );
@@ -227,8 +298,8 @@ export async function POST(request: Request) {
                               profile_visits, replies, navigation, follows,
                               ad_impressions, ad_cpm, estimated_earnings,
                               has_package_hashtag, detected_category, detected_country,
-                              hashtags)
-                             VALUES (?,?,?,?, ?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?,?)`,
+                              hashtags, is_ignored)
+                             VALUES (?,?,?,?, ?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?,?, ?)`,
                             [
                                 sessionId, post.sourceType, post.postId, post.pageOrAccountId,
                                 (post.title || "").slice(0, 65535), (post.description || "").slice(0, 65535),
@@ -246,6 +317,7 @@ export async function POST(request: Request) {
                                 post.detectedCategory,
                                 post.detectedCountry,
                                 post.hashtags.join(", "),
+                                0,
                             ],
                         );
                         mysqlPostId = (postResult as { insertId: number }).insertId;
@@ -262,8 +334,8 @@ export async function POST(request: Request) {
                           profile_visits, replies, navigation, follows,
                           ad_impressions, ad_cpm, estimated_earnings,
                           has_package_hashtag, detected_category, detected_country,
-                          hashtags)
-                         VALUES (?,?,?,?, ?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?,?)`,
+                             hashtags, is_ignored)
+                            VALUES (?,?,?,?, ?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?,?, ?)`,
                         [
                             sessionId, post.sourceType, post.postId, post.pageOrAccountId,
                             (post.title || "").slice(0, 65535), (post.description || "").slice(0, 65535),
@@ -281,13 +353,14 @@ export async function POST(request: Request) {
                             post.detectedCategory,
                             post.detectedCountry,
                             post.hashtags.join(", "),
+                            0,
                         ],
                     );
                     mysqlPostId = (postResult as { insertId: number }).insertId;
                 }
 
                 // Upsert mapping if matched
-                if (post.match) {
+                if (post.match && !isExistingPost) {
                     // Remove old mappings for this post then insert fresh
                     await conn.query(`DELETE FROM post_package_mapping WHERE post_id = ?`, [mysqlPostId]);
                     await conn.query(
@@ -306,6 +379,7 @@ export async function POST(request: Request) {
             }
 
             await conn.commit();
+            console.log(`[import-sheets] committed session=${sessionId}`);
 
             // Return results
             return NextResponse.json({
@@ -347,7 +421,7 @@ function summarizePost(p: ProcessedPost) {
 
 import type { PackageUpdate, OfferUpdate } from "@/lib/postIdentifier";
 
-function reAggregate(posts: ProcessedPost[], packages: PackageRef[], _type: "package"): PackageUpdate[] {
+function reAggregate(posts: ProcessedPost[], packages: PackageRef[]): PackageUpdate[] {
     const groups = new Map<string, ProcessedPost[]>();
     for (const post of posts) {
         if (post.match?.targetType !== "package") continue;

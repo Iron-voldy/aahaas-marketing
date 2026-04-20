@@ -19,7 +19,7 @@ import type { Row } from "@/lib/types";
 import { exportRecordToXlsx } from "@/lib/exporters";
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
-    LineChart, Line, CartesianGrid,
+    CartesianGrid,
 } from "recharts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -750,6 +750,9 @@ export function ReportsClient() {
                                     <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider"><SortBtn label="Reactions" sortKey="reactions" current={sortKey} onSort={handleSort} /></th>
                                     <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider"><SortBtn label="Comments" sortKey="comments" current={sortKey} onSort={handleSort} /></th>
                                     <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider"><SortBtn label="Shares" sortKey="shares" current={sortKey} onSort={handleSort} /></th>
+                                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider"><SortBtn label="Clicks" sortKey="clicks" current={sortKey} onSort={handleSort} /></th>
+                                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Views</th>
+                                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Saves</th>
                                     <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-14">Links</th>
                                     <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider min-w-50">Categorize</th>
                                 </tr>
@@ -768,6 +771,9 @@ export function ReportsClient() {
                                             <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-600 dark:text-slate-300">{fmt(g.combinedReactions)}</td>
                                             <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-600 dark:text-slate-300">{fmt(g.combinedComments)}</td>
                                             <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-600 dark:text-slate-300">{fmt(g.combinedShares)}</td>
+                                            <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-600 dark:text-slate-300">{fmt(g.combinedClicks)}</td>
+                                            <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-600 dark:text-slate-300">{fmt(g.combinedViews)}</td>
+                                            <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-600 dark:text-slate-300">{fmt(g.combinedSaves)}</td>
                                             <td className="px-4 py-3 text-center"><div className="flex items-center justify-center gap-1">
                                                 {g.fbPost?.permalink && <a href={g.fbPost.permalink} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-blue-500 hover:text-blue-700"><ExternalLink className="w-3 h-3" /></a>}
                                                 {g.igPost?.permalink && <a href={g.igPost.permalink} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-pink-500 hover:text-pink-700"><ExternalLink className="w-3 h-3" /></a>}
@@ -804,7 +810,7 @@ export function ReportsClient() {
                         </table>
                     </div>
                     <div className="px-4 py-3 border-t border-slate-100 dark:border-white/5">
-                        <span className="text-xs text-slate-400">Showing {visibleGroups.length} posts ({posts.length} raw){searchTerm && ` filtered by "${searchTerm}"`}</span>
+                        <span className="text-xs text-slate-400">Showing {visibleGroups.length} posts ({posts.length} raw){searchTerm && ` · filtered by "${searchTerm}"`}</span>
                     </div>
                 </div>
             )}
