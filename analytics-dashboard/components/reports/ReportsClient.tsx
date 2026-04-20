@@ -907,12 +907,12 @@ function PostCard({ group, onClick, onCategorize, categorizing }: {
                         className="absolute inset-0 w-full h-full border-0 pointer-events-none"
                         loading="lazy"
                         sandbox="allow-scripts allow-same-origin allow-popups"
+                        allow="unload"
                         referrerPolicy="no-referrer-when-downgrade"
                         onError={() => setEmbedError(true)}
                     />
                 ) : (
                     <div className="absolute inset-0 flex flex-col justify-center items-start p-4 gap-2">
-                        <span className="text-4xl opacity-40 select-none">{theme.emoji}</span>
                         {priceText && (
                             <span className="text-sm font-bold text-white bg-black/40 backdrop-blur-sm px-2.5 py-0.5 rounded-full">
                                 {priceText}
@@ -1112,6 +1112,7 @@ function PostDetailModal({ group, allPosts, onClose }: {
                                     className="absolute inset-0 w-full h-full border-0"
                                     loading="lazy"
                                     sandbox="allow-scripts allow-same-origin allow-popups"
+                                    allow="unload"
                                     referrerPolicy="no-referrer-when-downgrade"
                                     onError={() => setEmbedError(true)}
                                 />

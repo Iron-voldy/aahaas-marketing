@@ -53,10 +53,12 @@ function getStats(row: Row, dateRange?: { from: string; to: string } | null) {
     const totalReachCol = keys.find(k => (k.includes("total") && k.includes("reach")) || k === "Combined Reach");
     const fbReachCol = keys.find(k => (k.startsWith("fb_") && k.includes("reach")) || k === "FB Reach" || k === "Reach");
     const igReachCol = keys.find(k => (k.startsWith("ig_") && k.includes("reach")) || k === "IG Reach" || k === "Reach_1");
-    const fbReactCol = keys.find(k => (k.startsWith("fb_") && k.includes("react")) || k === "FB Interactions (Reactions)");
-    const igReactCol = keys.find(k => (k.startsWith("ig_") && k.includes("react")) || k === "IG Interactions (Reactions)");
+    // Accept both CSV-import names ("FB Interactions (Reactions)") and reports-categorize names ("FB Reactions")
+    const fbReactCol = keys.find(k => (k.startsWith("fb_") && k.includes("react")) || k === "FB Interactions (Reactions)" || k === "FB Reactions");
+    const igReactCol = keys.find(k => (k.startsWith("ig_") && k.includes("react")) || k === "IG Interactions (Reactions)" || k === "IG Reactions");
     const fbClicksCol = keys.find(k => (k.startsWith("fb_") && k.includes("click") && !k.includes("link")) || k === "FB Total Clicks");
-    const igSaveCol = keys.find(k => (k.startsWith("ig_") && k.includes("save")) || k === "IG Interactions (Saves)");
+    // Accept both "IG Interactions (Saves)" and "IG Saves"
+    const igSaveCol = keys.find(k => (k.startsWith("ig_") && k.includes("save")) || k === "IG Interactions (Saves)" || k === "IG Saves");
     const convCol = keys.find(k => k.includes("conversation") || k === "FB + IG Messaging Conversations Started");
     const spendCol = keys.find(k => k.includes("spend") || k === "Amount Spent (USD)");
 
@@ -102,11 +104,11 @@ export function PackageCard({
     imagePath,
 }: PackageCardProps) {
     const [imgError, setImgError] = useState(false);
-    // packageName: prefer human-set "Package" name; fall back to country/destination for CSV rows
-    // (row["package"] = "Picture" is the post type, NOT a package title)
-    const packageName = String(row["Package"] || row["country"] || row["Country"] || "Unknown");
+    // "Package" = CSV-import name field; "name" = reports-categorize old field; "destination"/"country" = location fallbacks
+    const packageName = String(row["Package"] || row["name"] || row["country"] || row["Country"] || row["destination"] || row["Destination"] || "Unknown");
     const destination = String(row["Destination"] || row["destination"] || row["Country"] || row["country"] || "");
-    const datePublished = String(row["Date Published"] || row["date_published"] || "");
+    // "Date Published" = CSV-import; "date_published" = snake; "datePublished" = old reports-categorize
+    const datePublished = String(row["Date Published"] || row["date_published"] || row["datePublished"] || "");
     const postUrl = String(row["postUrl"] || row["fb_permalink"] || row["ig_permalink"] || "");
     const fbPermalink = String(row["fb_permalink"] || "");
     const igPermalink = String(row["ig_permalink"] || "");

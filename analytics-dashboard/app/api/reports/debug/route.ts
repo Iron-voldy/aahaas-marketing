@@ -26,15 +26,30 @@ export async function POST() {
 }
 
 /**
- * GET /api/reports/debug
- * Returns raw DB stats to help diagnose empty Reports page.
+ * GET /api/reports/debug        → social_media_posts stats
+ * GET /api/reports/debug?pkg=1  → raw pkg_data rows (keys + data)
  */
-export async function GET() {
+export async function GET(request: Request) {
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const pool = getMysqlPool();
+    const { searchParams } = new URL(request.url);
 
+    // ── pkg_data inspector ─────────────────────────────────────────────────
+    if (searchParams.has("pkg")) {
+        try {
+            const [rows] = await pool.query<RowDataPacket[]>("SELECT id, data FROM pkg_data LIMIT 20");
+            return NextResponse.json(rows.map(r => {
+                const parsed = typeof r.data === "string" ? JSON.parse(r.data) : r.data;
+                return { id: r.id, keys: Object.keys(parsed), data: parsed };
+            }));
+        } catch (err) {
+            return NextResponse.json({ error: String(err) }, { status: 500 });
+        }
+    }
+
+    // ── social_media_posts stats ───────────────────────────────────────────
     try {
         const [[countRow]] = await pool.query<RowDataPacket[]>(
             "SELECT COUNT(*) AS total FROM social_media_posts"

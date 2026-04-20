@@ -16,7 +16,7 @@ import {
     Legend,
 } from "recharts";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FacebookLogo, InstagramLogo } from "@/components/icons/SocialLogos";
 import type { Row } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -42,9 +42,11 @@ interface PackageDetailModalProps {
 export function PackageDetailModal({ row, open, onClose }: PackageDetailModalProps) {
     if (!row) return null;
 
-    const packageName = String(row["Package"] || row["Country"] || row["country"] || row["package"] || "Unknown");
+    // "Package" = CSV-import name; "name" = old reports-categorize; "destination"/"country" = location fallbacks
+    const packageName = String(row["Package"] || row["name"] || row["country"] || row["Country"] || row["destination"] || row["Destination"] || row["package"] || "Unknown");
     const destination = String(row["Destination"] || row["destination"] || row["Country"] || row["country"] || "Unknown");
-    const datePublished = String(row["Date Published"] || row["date_published"] || "");
+    // "date_published" = snake_case; "datePublished" = old reports-categorize camelCase
+    const datePublished = String(row["Date Published"] || row["date_published"] || row["datePublished"] || "");
     const validity = String(row["validity_period"] ?? "");
     const fbPermalink = String(row["fb_permalink"] || row["postUrl"] || "");
     const igPermalink = String(row["ig_permalink"] || "");
@@ -56,12 +58,13 @@ export function PackageDetailModal({ row, open, onClose }: PackageDetailModalPro
     const fbReach = g("fb_", "reach") || keys.find(k => k === "FB Reach");
     const igReach = g("ig_", "reach") || keys.find(k => k === "IG Reach");
     const totalReach = keys.find((k) => (k.includes("total") && k.includes("reach")) || k === "Combined Reach");
-    const fbReact = g("fb_", "react") || keys.find(k => k === "FB Interactions (Reactions)");
-    const igReact = g("ig_", "react") || keys.find(k => k === "IG Interactions (Reactions)");
-    const fbShare = g("fb_", "share") || keys.find(k => k === "FB Interactions (Shares)");
-    const igShare = g("ig_", "share") || keys.find(k => k === "IG Interactions (Shares)");
+    // Accept both CSV-import style and reports-categorize style field names
+    const fbReact = g("fb_", "react") || keys.find(k => k === "FB Interactions (Reactions)" || k === "FB Reactions");
+    const igReact = g("ig_", "react") || keys.find(k => k === "IG Interactions (Reactions)" || k === "IG Reactions");
+    const fbShare = g("fb_", "share") || keys.find(k => k === "FB Interactions (Shares)" || k === "FB Shares");
+    const igShare = g("ig_", "share") || keys.find(k => k === "IG Interactions (Shares)" || k === "IG Shares");
     const fbSave = g("fb_", "save") || keys.find(k => k === "FB Interactions (Saves)");
-    const igSave = g("ig_", "save") || keys.find(k => k === "IG Interactions (Saves)");
+    const igSave = g("ig_", "save") || keys.find(k => k === "IG Interactions (Saves)" || k === "IG Saves");
     const fbComment = g("fb_", "comment") || keys.find(k => k === "FB Interactions (Comments)");
     const igComment = g("ig_", "comment") || keys.find(k => k === "IG Interactions (Comments)");
     const fbClicks = keys.find((k) => (k.startsWith("fb_") && k.includes("click") && !k.includes("link")) || k === "FB Total Clicks");
@@ -96,6 +99,11 @@ export function PackageDetailModal({ row, open, onClose }: PackageDetailModalPro
         <Dialog open={open} onOpenChange={onClose}>
             {/* Explicit solid white/dark background — never transparent */}
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl border-0 shadow-2xl bg-white dark:bg-[#111118] text-slate-900 dark:text-white [&>button]:hidden">
+                {/* Visually hidden title/description for screen reader accessibility */}
+                <DialogHeader className="sr-only">
+                    <DialogTitle>{packageName} Package Stats</DialogTitle>
+                    <DialogDescription>Analytics breakdown for {packageName}</DialogDescription>
+                </DialogHeader>
                 {/* Brand red header */}
                 <div className="relative p-6" style={{ background: `linear-gradient(135deg, ${BRAND_RED} 0%, #c01f1f 100%)` }}>
                     <Button

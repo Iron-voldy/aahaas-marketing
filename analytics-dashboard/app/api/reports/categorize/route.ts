@@ -79,23 +79,31 @@ export async function POST(request: Request) {
         if (category === "package" && postData) {
             const id = randomUUID();
             const name = postData.title || postData.description?.slice(0, 80) || "Unnamed Package";
+            // Field names must match what PackageCard / getStats() reads:
+            // - "Package"                    → packageName display
+            // - "date_published"             → date display
+            // - "FB Reach" / "IG Reach"      → reach stats (already correct)
+            // - "FB Interactions (Reactions)"→ fbReactCol in getStats
+            // - "IG Interactions (Reactions)"→ igReactCol in getStats
+            // - "IG Interactions (Saves)"    → igSaveCol in getStats
             const data = {
-                name,
+                "Package": name,
                 description: postData.description || "",
                 destination: postData.country || "",
+                "Country": postData.country || "",
                 imageUrl: postData.imageUrl || "",
                 postUrl: postData.permalink || "",
                 "FB Reach": postData.fbReach || 0,
-                "FB Reactions": postData.fbReactions || 0,
+                "FB Interactions (Reactions)": postData.fbReactions || 0,
                 "FB Comments": postData.fbComments || 0,
                 "FB Shares": postData.fbShares || 0,
                 "IG Reach": postData.igReach || 0,
-                "IG Reactions": postData.igReactions || 0,
+                "IG Interactions (Reactions)": postData.igReactions || 0,
                 "IG Comments": postData.igComments || 0,
                 "IG Shares": postData.igShares || 0,
-                "IG Saves": postData.igSaves || 0,
+                "IG Interactions (Saves)": postData.igSaves || 0,
                 "Combined Reach": (postData.fbReach || 0) + (postData.igReach || 0),
-                datePublished: postData.publishTime ? postData.publishTime.slice(0, 10) : "",
+                date_published: postData.publishTime ? postData.publishTime.slice(0, 10) : "",
                 source: "reports",
                 updatedAt: new Date().toISOString(),
             };
