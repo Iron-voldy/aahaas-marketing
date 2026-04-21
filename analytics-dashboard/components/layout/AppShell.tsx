@@ -7,14 +7,11 @@ import { useState } from "react";
 import {
     LayoutDashboard,
     Package,
-    Lightbulb,
     Settings,
     Menu,
     TrendingUp,
     LogOut,
-    Database,
     Gift,
-    PhoneCall,
     FileSpreadsheet,
     Bell,
     Search,
@@ -34,9 +31,6 @@ const navItems = [
     { href: "/ads", label: "Ads Campaigns", icon: Megaphone, desc: "FB & IG ad analytics" },
     { href: "/offers", label: "Seasonal Offers", icon: Gift, desc: "Promotions" },
     { href: "/reports", label: "Excel Reports", icon: FileSpreadsheet, desc: "Analytics data" },
-    { href: "/inquiries", label: "Bookings & Inquiries", icon: PhoneCall, desc: "Customer requests" },
-    { href: "/insights", label: "Insights", icon: Lightbulb, desc: "AI insights" },
-    { href: "/data-entry", label: "Data Entry", icon: Database, desc: "Manage data" },
     { href: "/logs", label: "Access Logs", icon: Settings, desc: "Activity logs" },
 ];
 

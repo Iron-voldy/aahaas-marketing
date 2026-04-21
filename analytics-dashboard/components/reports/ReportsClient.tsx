@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import NextImage from "next/image";
 import {
     FileSpreadsheet, Download, Upload, Search, Filter, Calendar,
@@ -329,7 +328,6 @@ function groupPosts(posts: PostRow[]): GroupedPost[] {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function ReportsClient() {
-    const router = useRouter();
     const [posts, setPosts] = useState<PostRow[]>([]);
     const [summary, setSummary] = useState<Summary | null>(null);
     const [loading, setLoading] = useState(true);
@@ -474,13 +472,12 @@ export function ReportsClient() {
             const msg = category === "package" ? "Added to Packages ✓" : "Added to Offers ✓";
             setToast({ msg, type: category === "package" ? "package" : "offer" });
             setTimeout(() => setToast(null), 3000);
-            router.push(category === "package" ? "/packages" : "/offers");
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
         } finally {
             setCategorizingKey(null);
         }
-    }, [fetchPosts, router]);
+    }, [fetchPosts]);
 
     const monthOptions = useMemo(() => getMonthOptions(), []);
 
